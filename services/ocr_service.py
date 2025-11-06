@@ -2,110 +2,147 @@
 
 from __future__ import annotations
 
-import io
 import logging
 from typing import BinaryIO, Iterable, List, Optional
 
-import numpy as np
-from PIL import Image
-
 from models.entities import OCRParseResult, Transaction
-from services.structuring_service import StructuringService
+from services.vision_ocr_service import VisionOCRService
 
 logger = logging.getLogger(__name__)
 
 
+def _t(key: str, fallback: str) -> str:
+    """Translate error messages when session/i18n is available."""
+    try:
+        from utils.session import get_i18n  # Imported lazily to avoid hard dependency
+
+        return get_i18n().t(key)
+    except Exception:  # pylint: disable=broad-except
+        return fallback
+
+
 class OCRService:
-    """Facade wrapping PaddleOCR and GPT-4o structuring pipeline."""
+    """使用Vision LLM进行高精度OCR识别和结构化（替代PaddleOCR）."""
 
     def __init__(
         self,
         use_angle_class: bool = True,
         lang: str = "ch",
-        structuring_service: Optional[StructuringService] = None,
+        structuring_service: Optional = None,
     ) -> None:
-        self.use_angle_class = use_angle_class
-        self.lang = lang
-        self._ocr_engine = None
-        self.structuring_service = structuring_service
+        """
+        初始化OCR服务
 
-    def _lazy_engine(self):
-        """Instantiate PaddleOCR lazily to keep app startup fast."""
-        if self._ocr_engine is not None:
-            return self._ocr_engine
-
-        try:
-            from paddleocr import PaddleOCR
-        except ImportError as exc:  # pragma: no cover - runtime guard
-            raise RuntimeError(
-                "PaddleOCR 未安装。请先运行 `pip install paddleocr`。"
-            ) from exc
-
-        self._ocr_engine = PaddleOCR(
-            use_angle_cls=self.use_angle_class,
-            lang=self.lang,
-            show_log=False,
-        )
-        return self._ocr_engine
+        Args:
+            use_angle_class: 保留参数用于向后兼容，但不再使用
+            lang: 保留参数用于向后兼容，但不再使用
+            structuring_service: 不再需要，Vision LLM直接输出结构化数据
+        """
+        # 使用Vision LLM服务（默认gpt-4o）
+        self._vision_ocr = VisionOCRService(model="gpt-4o")
+        logger.info("OCR服务初始化完成，使用Vision LLM (gpt-4o)")
 
     def extract_text(self, image_bytes: bytes) -> str:
-        """Run PaddleOCR on uploaded image data."""
-        engine = self._lazy_engine()
+        """
+        运行OCR识别（仅用于兼容性，实际使用Vision LLM直接提取交易）
 
+        Args:
+            image_bytes: 图片字节数据
+
+        Returns:
+            OCR识别的文本（简化版本，主要用于日志）
+        """
         try:
-            image = Image.open(io.BytesIO(image_bytes))
+            # 使用Vision LLM提取交易
+            transactions = self._vision_ocr.extract_transactions_from_image(image_bytes)
+
+            # 生成简单的文本表示用于日志
+            lines = []
+            for txn in transactions:
+                lines.append(
+                    f"{txn.date} | {txn.merchant} | {txn.category} | ¥{txn.amount}"
+                )
+
+            return (
+                "\n".join(lines)
+                if lines
+                else _t(
+                    "bill_upload.vision_structured_placeholder",
+                    "Vision OCR returned structured transactions directly.",
+                )
+            )
+
         except Exception as exc:  # pylint: disable=broad-except
-            logger.error("无法读取图像数据：%s", exc)
-            raise RuntimeError("账单文件解析失败，请确认文件格式是否正确。") from exc
-
-        if image.mode not in ("RGB", "RGBA"):
-            image = image.convert("RGB")
-
-        np_img = np.array(image)
-        logger.debug("执行PaddleOCR识别，图像尺寸：%s", np_img.shape)
-        try:
-            result = engine.ocr(np_img, cls=self.use_angle_class)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("PaddleOCR识别失败：%s", exc)
-            raise RuntimeError("图片识别失败，请确认账单是否清晰。") from exc
-
-        lines: List[str] = []
-        for page in result:
-            for line in page:
-                text = line[1][0]
-                lines.append(text.strip())
-
-        return "\n".join(line for line in lines if line)
+            logger.error("OCR识别失败：%s", exc)
+            raise RuntimeError(
+                _t("errors.ocr_run_fail", "OCR failed. Please check image quality.")
+            ) from exc
 
     def structure_transactions(self, ocr_text: str) -> List[Transaction]:
-        """Use GPT-4o (or rule-based fallback) to convert text into transactions."""
-        if not ocr_text.strip():
-            logger.warning("Empty OCR text received, returning no transactions.")
-            return []
+        """
+        结构化交易数据（已弃用，Vision LLM直接输出结构化数据）
 
-        if self.structuring_service is None:
-            self.structuring_service = StructuringService()
-        try:
-            return self.structuring_service.parse_transactions(ocr_text)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("结构化解析失败：%s", exc)
-            raise RuntimeError("结构化解析失败，请稍后重试。") from exc
+        Args:
+            ocr_text: OCR文本（不再使用）
+
+        Returns:
+            空列表（实际数据在process_files中直接获取）
+        """
+        logger.warning("structure_transactions已弃用，请直接使用Vision LLM提取交易")
+        return []
 
     def process_files(self, files: Iterable[BinaryIO]) -> List[OCRParseResult]:
-        """Entry point that accepts uploaded files and returns normalized transactions."""
+        """
+        处理上传的文件，使用Vision LLM提取交易记录
+
+        Args:
+            files: 上传的文件对象
+
+        Returns:
+            OCRParseResult列表
+        """
         outcomes: List[OCRParseResult] = []
         for file_obj in files:
-            filename = getattr(file_obj, "name", "未命名文件")
+            filename = getattr(
+                file_obj,
+                "name",
+                _t("common.unnamed_file", "Uploaded file"),
+            )
             file_obj.seek(0)
             raw_bytes = file_obj.read()
             if not raw_bytes:
                 logger.warning("文件%s为空，已跳过。", filename)
                 continue
 
-            raw_text = self.extract_text(raw_bytes)
-            transactions = self.structure_transactions(raw_text)
+            try:
+                # 使用Vision LLM直接提取交易记录
+                transactions = self._vision_ocr.extract_transactions_from_image(
+                    raw_bytes
+                )
 
-            outcomes.append(
-                OCRParseResult(filename=filename, text=raw_text, transactions=transactions)
-            )
+                # 生成简单的OCR文本用于显示
+                raw_text = "\n".join(
+                    f"{txn.date} | {txn.merchant} | {txn.category} | ¥{txn.amount}"
+                    for txn in transactions
+                )
+
+                outcomes.append(
+                    OCRParseResult(
+                        filename=filename, text=raw_text, transactions=transactions
+                    )
+                )
+                logger.info(f"文件 {filename} 识别到 {len(transactions)} 条交易记录")
+
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(f"处理文件 {filename} 失败: {exc}")
+                # 返回空结果而不是抛出异常，让用户可以继续处理其他文件
+                failure_text = _t("errors.ocr_run_fail", "OCR failed.")
+                outcomes.append(
+                    OCRParseResult(
+                        filename=filename,
+                        text=f"{failure_text}: {str(exc)}",
+                        transactions=[],
+                    )
+                )
+
         return outcomes

@@ -1,93 +1,63 @@
-"""Unit tests for OCRService covering OCR extraction and structuring integration."""
+"""Tests for the Vision-based OCR service integration."""
 
 from __future__ import annotations
 
-import io
-from typing import List
-from unittest.mock import Mock
+from io import BytesIO
+from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image
 
-from models.entities import OCRParseResult, Transaction
 from services.ocr_service import OCRService
+from services.vision_ocr_service import VisionOCRService
 
 
-def _create_image_bytes() -> io.BytesIO:
-    """Generate an in-memory PNG for testing."""
-    buffer = io.BytesIO()
-    Image.new("RGB", (8, 8), color="white").save(buffer, format="PNG")
-    buffer.name = "receipt.png"
-    buffer.seek(0)
-    return buffer
+@pytest.fixture(autouse=True)
+def set_fake_env(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://fake.endpoint/")
 
 
-class DummyEngine:
-    """Minimal PaddleOCR stub returning deterministic text."""
+@pytest.mark.parametrize("file_name", ["test_bill.png", "receipt.jpg"])
+@patch("services.vision_ocr_service.OpenAI")
+def test_process_files_with_vision_success(mock_openai: MagicMock, file_name: str) -> None:
+    """Vision OCR returns structured transactions and readable text."""
 
-    def ocr(self, _image, cls=True):
-        return [
-            [
-                (None, ("星巴克", 0.98)),
-                (None, ("45.00 元", 0.95)),
-            ]
-        ]
-
-
-def test_extract_text_success(monkeypatch):
-    """Service should stitch PaddleOCR results into newline separated text."""
-    service = OCRService()
-    service._ocr_engine = DummyEngine()  # type: ignore[attr-defined]
-
-    content = service.extract_text(_create_image_bytes().getvalue())
-    assert "星巴克" in content
-    assert "45.00 元" in content
-
-
-def test_process_files_returns_structured_transactions(monkeypatch):
-    """Full pipeline should generate OCRParseResult with transactions."""
-    mock_structuring = Mock()
-    mock_structuring.parse_transactions.return_value = [
-        Transaction(
-            id="txn-1",
-            date="2025-11-01",
-            merchant="星巴克",
-            category="餐饮",
-            amount=45.0,
-            currency="CNY",
-        )
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = """
+    [
+      {"date": "2025-11-01", "merchant": "测试商户", "category": "餐饮", "amount": 45.0}
     ]
+    """
+    mock_openai.return_value.chat.completions.create.return_value = mock_response
 
-    service = OCRService(structuring_service=mock_structuring)
-    service._ocr_engine = DummyEngine()  # type: ignore[attr-defined]
+    fake_file = BytesIO(b"fake-image-data")
+    fake_file.name = file_name
 
-    image_file = _create_image_bytes()
-
-    results: List[OCRParseResult] = service.process_files([image_file])
+    ocr_service = OCRService()
+    results = ocr_service.process_files([fake_file])
 
     assert len(results) == 1
-    assert results[0].filename == "receipt.png"
-    assert len(results[0].transactions) == 1
-    mock_structuring.parse_transactions.assert_called_once()
+    record = results[0]
+    assert record.filename == file_name
+    assert record.transactions and record.transactions[0].merchant == "测试商户"
+    assert "测试商户" in record.text
 
 
-def test_process_files_invalid_image_raises_error():
-    """Binary payload that is not an image should raise a friendly error."""
-    service = OCRService()
-    service._ocr_engine = DummyEngine()  # type: ignore[attr-defined]
+@patch("services.vision_ocr_service.OpenAI")
+def test_process_files_handles_error(mock_openai: MagicMock) -> None:
+    """Vision OCR failures are captured gracefully without crashing."""
 
-    fake_file = io.BytesIO(b"not-an-image")
-    fake_file.name = "bad.txt"
+    fake_file = BytesIO(b"fake-image-data")
+    fake_file.name = "broken.png"
 
-    with pytest.raises(RuntimeError):
-        service.process_files([fake_file])
+    ocr_service = OCRService()
+    ocr_service._vision_ocr = MagicMock(spec=VisionOCRService)
+    ocr_service._vision_ocr.extract_transactions_from_image.side_effect = RuntimeError("vision error")
 
+    results = ocr_service.process_files([fake_file])
 
-def test_structure_transactions_handles_api_failure(monkeypatch):
-    """API errors from structuring service should be surfaced as RuntimeError."""
-    mock_structuring = Mock()
-    mock_structuring.parse_transactions.side_effect = RuntimeError("API failure")
-
-    service = OCRService(structuring_service=mock_structuring)
-    with pytest.raises(RuntimeError):
-        service.structure_transactions("示例文本")
+    assert len(results) == 1
+    record = results[0]
+    assert record.filename == "broken.png"
+    assert record.transactions == []
+    assert "识别失败" in record.text

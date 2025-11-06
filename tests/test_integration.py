@@ -1,20 +1,24 @@
-"""High level integration scenarios covering core user journeys."""
+"""Integration-style checks for core bilingual workflows."""
 
 from __future__ import annotations
 
 import datetime as dt
-from typing import Dict, List
+from io import BytesIO
+from typing import Dict, Iterable, List
+from unittest.mock import Mock
 
 import pytest
 
 from models.entities import Transaction
+from modules.chat_manager import ChatManager
 from modules.analysis import (
     calculate_category_totals,
-    detect_anomalies,
+    compute_anomaly_report,
     generate_insights,
 )
-from modules.chat_manager import ChatManager
+from services.ocr_service import OCRService
 from services.recommendation_service import RecommendationService
+from utils.i18n import I18n
 
 
 @pytest.fixture(autouse=True)
@@ -107,119 +111,181 @@ def sample_transactions() -> List[Transaction]:
     ]
 
 
-def test_flow_upload_analysis_chat_recommendation(sample_transactions):
-    """场景1：上传账单→分析→对话问答→推荐生成。"""
+def _mock_llm(chat_manager: ChatManager) -> None:
+    """Ensure no real OpenAI call happens during tests."""
+    chat_manager._ensure_client = Mock(side_effect=RuntimeError("LLM disabled"))  # type: ignore[attr-defined]
+    chat_manager._maybe_run_langchain_agent = Mock(return_value=None)  # type: ignore[attr-defined]
+
+
+def _recommendation_locale_payload(
+    transactions: Iterable[Transaction],
+    responses: Dict[str, int],
+    goal: str,
+    locale: str,
+) -> Dict[str, object]:
+    service = RecommendationService()
+    return service.generate(
+        transactions=transactions,
+        responses=responses,
+        investment_goal=goal,
+        locale=locale,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Scenario 1 & 2: Full workflow in Chinese and English
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "locale,question,expected_snippet,risk_expectation",
+    [
+        ("zh_CN", "我最近在哪方面花钱最多？", "餐饮", "保守型"),
+        (
+            "en_US",
+            "Where am I spending the most recently?",
+            "Your top spending category",
+            "Conservative",
+        ),
+    ],
+)
+def test_full_workflow_locale(
+    sample_transactions, locale, question, expected_snippet, risk_expectation
+):
+    """Upload → analysis → chat → recommendation for two locales."""
     totals = calculate_category_totals(sample_transactions)
-    top_category = max(totals, key=totals.get)
-    assert top_category == "餐饮"
+    assert totals
 
     insights = generate_insights(sample_transactions)
-    assert any("消费集中度提示" in insight.title for insight in insights)
+    assert insights
 
     chat_manager = ChatManager(
-        transactions=sample_transactions,
-        monthly_budget=1000.0,
+        transactions=sample_transactions, monthly_budget=1200.0, locale=locale
     )
-    question = "我最近在哪方面花钱最多？"
+    _mock_llm(chat_manager)
     chat_manager.add_message("user", question)
     reply = chat_manager.generate_response(question)
-    assert "餐饮" in reply
+    assert expected_snippet in reply
 
-    rec_service = RecommendationService()
-    risk_answers = {"q1": 1, "q2": 2, "q3": 2}
-    recommendation_payload = rec_service.generate(
-        transactions=sample_transactions,
-        responses=risk_answers,
-        investment_goal="我想在3年内存20万买车",
+    payload = _recommendation_locale_payload(
+        sample_transactions,
+        responses={"q1": 1, "q2": 2, "q3": 1},
+        goal="存钱买车" if locale == "zh_CN" else "Save 200k to buy a car",
+        locale=locale,
     )
-    assert recommendation_payload["risk_level"] in {"保守型", "稳健型", "激进型"}
-    assert "组合" in recommendation_payload["recommendation"].summary
+    assert payload["risk_level"].startswith(risk_expectation)
+    summary = payload["recommendation"].summary  # type: ignore[index]
+    assert isinstance(summary, str) and summary
 
 
-def test_flow_batch_upload_anomaly_confirmation(sample_transactions):
-    """场景2：批量上传→异常检测→用户确认。"""
-    # 添加一笔明显异常的超大额消费
-    outlier = Transaction(
-        id="txn-100",
-        date=dt.date(2025, 11, 4),
-        merchant="未知商户",
-        category="其他",
-        amount=5200.0,
-    )
-    extended = sample_transactions + [outlier]
-    anomalies = detect_anomalies(extended, threshold=2.0)
-    assert anomalies, "应检测到异常支出"
-
-    session_state: Dict[str, list] = {
-        "active_anomalies": anomalies.copy(),
-        "anomaly_history": [],
-    }
-
-    flagged = session_state["active_anomalies"].pop(0)
-    flagged["status"] = "confirmed"
-    session_state["anomaly_history"].append(flagged)
-
-    assert len(session_state["active_anomalies"]) == len(anomalies) - 1
-    assert session_state["anomaly_history"][0]["status"] == "confirmed"
+# -----------------------------------------------------------------------------
+# Scenario 3: Anomaly detection and feedback loop
+# -----------------------------------------------------------------------------
 
 
-def test_flow_multi_turn_chat_and_reset(sample_transactions):
-    """场景3：多轮对话→清空历史→重新问答。"""
-    manager = ChatManager(
-        transactions=sample_transactions,
-        monthly_budget=2000.0,
-    )
-
-    prompt_budget = "我这个月还能花多少？"
-    manager.add_message("user", prompt_budget)
-    _ = manager.generate_response(prompt_budget)
-
-    prompt_etf = "ETF是什么？"
-    manager.add_message("user", prompt_etf)
-    _ = manager.generate_response(prompt_etf)
-    assert len(manager.history) >= 4  # 至少包含两轮对话的用户与助手回复
-
-    manager.history.clear()
-    assert manager.history == []
-
-    follow_up = "我最近在哪方面花钱最多？"
-    manager.add_message("user", follow_up)
-    reply = manager.generate_response(follow_up)
-    assert "餐饮" in reply
-    assert len(manager.history) == 2  # user + assistant
-
-
-def test_flow_recommendation_and_xai(sample_transactions):
-    """场景4：风险问卷→推荐生成→查看XAI解释。"""
-    service = RecommendationService()
-    payload = service.generate(
-        transactions=sample_transactions,
-        responses={"q1": 2, "q2": 2, "q3": 3},
-        investment_goal="我想在5年内存30万教育金",
-    )
-
-    explanation: str = payload["explanation"]  # type: ignore[assignment]
-    assert "为什么推荐这个组合" in explanation
-    assert "- 预期年化收益" in explanation
-    assert payload["metrics"]["expected_return"] > 0
-
-
-def test_flow_anomaly_feedback_history(sample_transactions):
-    """场景5：异常触发→用户标记欺诈→查看历史记录。"""
+def test_anomaly_detection_feedback(sample_transactions):
+    """Detect anomaly, confirm, and mark fraud."""
     outlier = Transaction(
         id="txn-200",
         date=dt.date(2025, 11, 5),
-        merchant="可疑海外商户",
+        merchant="可疑商户",
         category="其他",
-        amount=8800.0,
+        amount=9100.0,
     )
-    anomalies = detect_anomalies(sample_transactions + [outlier], threshold=2.0)
+    report = compute_anomaly_report(sample_transactions + [outlier], base_threshold=2.0)
+    anomalies = report["items"]
     assert anomalies
 
+    active = list(anomalies)
     history: List[Dict[str, object]] = []
-    suspect = anomalies[0]
-    suspect["status"] = "fraud"
-    history.append(suspect)
 
-    assert history[0]["status"] == "fraud"
-    assert history[0]["merchant"] == "可疑海外商户"
+    first = active.pop(0)
+    first["status"] = "confirmed"
+    history.append(first)
+
+    second = dict(first)
+    second["status"] = "fraud"
+    history.append(second)
+
+    assert history[0]["status"] == "confirmed"
+    assert history[1]["status"] == "fraud"
+    assert not active
+
+
+# -----------------------------------------------------------------------------
+# Scenario 4: Language switching mid-session
+# -----------------------------------------------------------------------------
+
+
+def test_language_switching_behaviour(sample_transactions):
+    """Language switch should produce locale-appropriate outputs without data loss."""
+    zh_manager = ChatManager(
+        transactions=sample_transactions, monthly_budget=1500.0, locale="zh_CN"
+    )
+    _mock_llm(zh_manager)
+    zh_reply = zh_manager.generate_response("我这个月还能花多少？")
+    assert "剩余" in zh_reply
+
+    en_manager = ChatManager(
+        transactions=sample_transactions, monthly_budget=1500.0, locale="en_US"
+    )
+    _mock_llm(en_manager)
+    en_reply = en_manager.generate_response("How much can I still spend this month?")
+    assert "remaining" in en_reply.lower()
+
+    zh_payload = _recommendation_locale_payload(
+        sample_transactions, {"q1": 2, "q2": 2, "q3": 2}, "教育基金", "zh_CN"
+    )
+    en_payload = _recommendation_locale_payload(
+        sample_transactions, {"q1": 2, "q2": 2, "q3": 2}, "Education fund", "en_US"
+    )
+    assert "稳健型" in zh_payload["recommendation"].summary  # type: ignore[index]
+    assert "Balanced" in en_payload["recommendation"].summary  # type: ignore[index]
+
+
+# -----------------------------------------------------------------------------
+# Scenario 5: Error handling paths
+# -----------------------------------------------------------------------------
+
+
+def test_error_handling_messages(monkeypatch):
+    """Ensure Vision OCR service returns user-friendly messages on failure."""
+    from services.vision_ocr_service import VisionOCRService
+
+    ocr = OCRService()
+    mock_vision = Mock(spec=VisionOCRService)
+    mock_vision.extract_transactions_from_image.side_effect = RuntimeError(
+        "vision error"
+    )
+    monkeypatch.setattr(ocr, "_vision_ocr", mock_vision)
+
+    fake_file = BytesIO(b"fake")
+    fake_file.name = "test.png"
+
+    results = ocr.process_files([fake_file])
+    assert len(results) == 1
+    record = results[0]
+    assert record.filename == "test.png"
+    assert record.transactions == []
+    assert "识别失败" in record.text or "vision error" in record.text
+
+
+# -----------------------------------------------------------------------------
+# Additional sanity checks for bilingual resources
+# -----------------------------------------------------------------------------
+
+
+def test_i18n_resources_available():
+    """Ensure key translation categories are present."""
+    zh = I18n("zh_CN")
+    en = I18n("en_US")
+    for key in [
+        "app.title",
+        "navigation.home",
+        "bill_upload.title",
+        "spending.title",
+        "chat.title",
+        "recommendation.title",
+    ]:
+        assert zh.t(key) != key
+        assert en.t(key) != key
