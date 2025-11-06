@@ -112,12 +112,10 @@ def compute_anomaly_report(
     - message: Optional[str] 提示文案
     """
     transactions = list(transactions)
-    merchant_whitelist: Set[str] = (
-        {m.strip() for m in whitelist_merchants or [] if m.strip()}
-    )
-    filtered = [
-        txn for txn in transactions if txn.merchant not in merchant_whitelist
-    ]
+    merchant_whitelist: Set[str] = {
+        m.strip() for m in whitelist_merchants or [] if m.strip()
+    }
+    filtered = [txn for txn in transactions if txn.merchant not in merchant_whitelist]
     sample_size = len(filtered)
 
     report: Dict[str, object] = {
@@ -129,14 +127,14 @@ def compute_anomaly_report(
     }
 
     if sample_size < 3:
-        report["message"] = "数据较少，暂未启用异常检测。"
+        report["message"] = "spending.message_insufficient_data"
         return report
 
     applied_threshold = base_threshold
     if sample_size < 10:
         applied_threshold = max(base_threshold, 3.0)
         report["sensitivity"] = "reduced"
-        report["message"] = "数据积累中，检测灵敏度已降低以减少误报。"
+        report["message"] = "spending.message_reduced_sensitivity"
 
     anomalies = _compute_zscore_anomalies(filtered, applied_threshold)
 
@@ -157,7 +155,7 @@ def compute_anomaly_report(
         report["items"] = anomalies
         report["threshold_used"] = applied_threshold
     else:
-        report.setdefault("message", "未检测到异常支出。")
+        report.setdefault("message", "spending.anomaly_no_detect")
 
     return report
 
@@ -184,7 +182,9 @@ def _month_over_month_insight(df: pd.DataFrame) -> SpendingInsight | None:
 
     monthly = df.copy()
     monthly["year_month"] = monthly["date"].dt.to_period("M")
-    month_totals = monthly.groupby(["year_month", "category"])["amount"].sum().reset_index()
+    month_totals = (
+        monthly.groupby(["year_month", "category"])["amount"].sum().reset_index()
+    )
     if month_totals["year_month"].nunique() < 2:
         return None
 

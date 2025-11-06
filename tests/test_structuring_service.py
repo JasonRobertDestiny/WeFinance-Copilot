@@ -21,7 +21,9 @@ def _mock_env(monkeypatch):
 
 def _build_completion(payload: dict | str | None):
     """Helper returning a completion object respecting the OpenAI schema."""
-    message = SimpleNamespace(content=json.dumps(payload) if isinstance(payload, dict) else payload)
+    message = SimpleNamespace(
+        content=json.dumps(payload) if isinstance(payload, dict) else payload
+    )
     choice = SimpleNamespace(message=message)
     return SimpleNamespace(choices=[choice])
 
@@ -55,7 +57,18 @@ def test_parse_transactions_success(monkeypatch):
 def test_parse_transactions_ignores_bad_rows(monkeypatch):
     """Non-dict entries should be skipped without breaking the workflow."""
     mock_client = Mock()
-    payload = {"transactions": ["invalid-entry", {"id": "ok", "date": "2025-11-02", "merchant": "麦当劳", "category": "餐饮", "amount": 28.8}]}
+    payload = {
+        "transactions": [
+            "invalid-entry",
+            {
+                "id": "ok",
+                "date": "2025-11-02",
+                "merchant": "麦当劳",
+                "category": "餐饮",
+                "amount": 28.8,
+            },
+        ]
+    }
     mock_client.chat.completions.create.return_value = _build_completion(payload)
     monkeypatch.setattr(structuring_service, "OpenAI", Mock(return_value=mock_client))
 

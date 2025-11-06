@@ -1,11 +1,11 @@
-"""Conversational manager that orchestrates GPT responses with finance context."""
+"""Chat manager coordinating conversational interactions with the LLM."""
 
 from __future__ import annotations
 
 import logging
 import os
 import time
-from typing import Dict, Iterable, List, Optional
+from typing import Iterable, List, Optional
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -13,6 +13,7 @@ from openai import OpenAI, OpenAIError
 
 from models.entities import Transaction
 from modules.analysis import calculate_category_totals
+from utils.i18n import I18n
 
 try:  # Optional LangChain integration
     from services.langchain_agent import LangChainFinanceAgent
@@ -30,44 +31,32 @@ class ChatManager:
     def __init__(
         self,
         *,
-        history: Optional[List[Dict[str, str]]] = None,
+        history: Optional[List[dict]] = None,
         transactions: Optional[Iterable[Transaction | dict]] = None,
         monthly_budget: float | None = None,
         model: str = "gpt-4o-mini",
         api_key: str | None = None,
         base_url: str | None = None,
+        locale: str | None = None,
     ) -> None:
-        self.history: List[Dict[str, str]] = history if history is not None else []
-        self.transactions: List[Transaction] = self._normalize_transactions(transactions)
+        self.history: List[dict] = history if history is not None else []
+        self.transactions: List[Transaction] = self._normalize_transactions(
+            transactions
+        )
         self.monthly_budget = monthly_budget if monthly_budget is not None else 0.0
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        self.locale = locale or "zh_CN"
+        self.i18n = I18n(self.locale)
+        self.system_prompt_template = self.i18n.t("chat.system_prompt")
+
         self._client: Optional[OpenAI] = None
         self._lc_agent: Optional[LangChainFinanceAgent] = None
 
-        self.system_prompt_template = """
-你是WeFinance Copilot，一个专业的个人财务助理。
-你的任务是帮助用户理解他们的消费情况，提供理财建议。
-
-用户的账单数据：
-{transactions_summary}
-
-用户的预算设置：
-月度预算：{monthly_budget}元
-已消费：{spent}元
-剩余：{remaining}元
-
-回答要求：
-1. 用通俗易懂的语言，避免专业术语
-2. 结合用户的真实数据回答
-3. 提供具体的数字和建议
-4. 保持简洁，1-3句话
-""".strip()
-
     @staticmethod
     def _normalize_transactions(
-        transactions: Optional[Iterable[Transaction | dict]]
+        transactions: Optional[Iterable[Transaction | dict]],
     ) -> List[Transaction]:
         if not transactions:
             return []
@@ -93,7 +82,7 @@ class ChatManager:
         """Append a message to the conversation history."""
         self.history.append({"role": role, "content": content})
 
-    def get_context(self, limit: int = 10) -> List[Dict[str, str]]:
+    def get_context(self, limit: int = 10) -> List[dict]:
         """Return the last N messages to maintain conversational context."""
         return self.history[-limit:]
 
@@ -127,12 +116,40 @@ class ChatManager:
 
     def _transactions_summary_text(self) -> str:
         if not self.transactions:
-            return "暂无账单数据。"
+            return self.i18n.t("common.no_data")
 
         totals = calculate_category_totals(self.transactions)
-        top_categories = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:3]
-        summary_lines = [f"- {category}：¥{amount:.2f}" for category, amount in top_categories]
-        return "\n".join(summary_lines) if summary_lines else "暂无账单数据。"
+        top_categories = sorted(totals.items(), key=lambda item: item[1], reverse=True)[
+            :3
+        ]
+        summary_lines = [
+            f"- {category}: ¥{amount:.2f}" for category, amount in top_categories
+        ]
+        return (
+            "\n".join(summary_lines) if summary_lines else self.i18n.t("common.no_data")
+        )
+
+    def _summary_fallback(self) -> str:
+        """Compose a rule-based summary when LLM is unavailable."""
+        totals = calculate_category_totals(self.transactions)
+        if totals:
+            top_category = max(totals, key=totals.get)
+            top_amount = totals[top_category]
+        else:
+            top_category = self.i18n.t("common.no_data")
+            top_amount = 0.0
+
+        spent = self._current_month_spent()
+        remaining = (
+            max(0.0, self.monthly_budget - spent) if self.monthly_budget else 0.0
+        )
+        return self.i18n.t(
+            "chat.fallback_summary",
+            spent=spent,
+            remaining=remaining,
+            category=top_category,
+            amount=top_amount,
+        )
 
     # ------------------------------------------------------------------ #
     # Query helpers
@@ -141,53 +158,65 @@ class ChatManager:
         """
         Attempt to answer finance questions without hitting the LLM.
 
-        Handles budget remaining and top spending category scenarios.
+        Handles budget remaining and top-spending category scenarios.
         """
         normalized = question.strip()
         if not normalized:
             return None
 
         lowered = normalized.lower()
-        has_budget_hint = any(keyword in normalized for keyword in ("还能花", "剩多少", "剩余", "预算"))
-        has_spend_max_hint = ("花钱最多" in normalized) or (
-            "最多" in normalized and any(token in normalized for token in ("花", "支出"))
+        chinese_budget_keywords = ("还能花", "剩多少", "剩余", "预算")
+        english_budget = (
+            "budget" in lowered and ("left" in lowered or "remaining" in lowered)
+        ) or ("how much" in lowered and "spend" in lowered and "month" in lowered)
+        has_budget_hint = (
+            any(keyword in normalized for keyword in chinese_budget_keywords)
+            or english_budget
+        )
+        has_spend_max_hint = (
+            ("花钱最多" in normalized)
+            or ("消费最多" in normalized)
+            or ("spend" in lowered and "most" in lowered)
+            or ("spending" in lowered and "most" in lowered)
         )
 
         if has_budget_hint:
             spent = self._current_month_spent()
             if self.monthly_budget <= 0:
-                return (
-                    "暂未设置月度预算，您可以先设定一个目标金额，我再帮您计算剩余额度。"
-                )
+                return self.i18n.t("chat.heuristic_no_budget")
             remaining = self.monthly_budget - spent
             remaining = max(0.0, remaining)
-            return (
-                f"本月预算剩余约 ¥{remaining:.2f}，已消费 ¥{spent:.2f}，"
-                f"建议把剩余额度分配到关键支出类别，避免集中爆发。"
+            return self.i18n.t(
+                "chat.heuristic_budget", remaining=remaining, spent=spent
             )
 
         if has_spend_max_hint:
             totals = calculate_category_totals(self.transactions)
             if not totals:
-                return "暂未检测到消费记录，上传账单后我会告诉您花费最多的类别。"
+                return self.i18n.t("chat.heuristic_no_transactions")
             top_category = max(totals, key=totals.get)
-            return f"最近花费最多的类别是「{top_category}」，总额约 ¥{totals[top_category]:.2f}。"
+            return self.i18n.t(
+                "chat.heuristic_top_category",
+                category=top_category,
+                amount=totals[top_category],
+            )
 
-        if "平均" in normalized and any(token in normalized for token in ("近", "最近")):
+        if (
+            "平均" in normalized
+            and any(token in normalized for token in ("近", "最近"))
+        ) or ("average" in lowered and ("recent" in lowered or "last" in lowered)):
             df = self._transactions_dataframe()
             if df.empty:
-                return "暂未检测到消费记录，上传账单后我会给出平均支出。"
+                return self.i18n.t("chat.heuristic_no_transactions")
             window_start = df["date"].max() - pd.Timedelta(days=2)
             recent = df[df["date"] >= window_start]
             if recent.empty:
-                return "最近几天没有新的消费记录。"
+                return self.i18n.t("chat.heuristic_recent_empty")
             avg = recent["amount"].mean()
-            return f"最近3天的日均消费约 ¥{avg:.2f}。"
+            return self.i18n.t("chat.heuristic_recent_avg", average=avg)
 
         if "etf" in lowered:
-            return (
-                "ETF是一篮子资产的指数基金，买一份就等于分散到多支股票或债券，费用通常较低，适合长期定投。"
-            )
+            return self.i18n.t("chat.heuristic_etf")
 
         return None
 
@@ -197,7 +226,9 @@ class ChatManager:
     def _ensure_client(self) -> OpenAI:
         if self._client is None:
             if not self.api_key:
-                raise RuntimeError("OPENAI_API_KEY 未配置，无法生成AI回复。")
+                raise RuntimeError(
+                    self.i18n.t("errors.llm_fail", error="API key missing")
+                )
             self._client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         return self._client
 
@@ -216,7 +247,9 @@ class ChatManager:
             return agent_answer
 
         spent = self._current_month_spent()
-        remaining = max(0.0, self.monthly_budget - spent) if self.monthly_budget else 0.0
+        remaining = (
+            max(0.0, self.monthly_budget - spent) if self.monthly_budget else 0.0
+        )
         system_prompt = self.system_prompt_template.format(
             transactions_summary=self._transactions_summary_text(),
             monthly_budget=f"{self.monthly_budget:.2f}",
@@ -239,16 +272,24 @@ class ChatManager:
                 )
                 content = completion.choices[0].message.content
                 if not content:
-                    raise RuntimeError("模型未返回内容。")
+                    raise RuntimeError("empty_response")
                 self.add_message("assistant", content)
                 return content
             except (OpenAIError, RuntimeError) as exc:
                 errors.append(str(exc))
-                time.sleep(0.5 * (attempt + 1))
+                logger.warning("LLM调用失败（第%s次）: %s", attempt + 1, exc)
+                time_wait = 0.5 * (attempt + 1)
+                time.sleep(time_wait)
 
-        fallback = "抱歉，暂时无法连接到AI服务，请稍后再试。"
+        summary = self._summary_fallback()
         if errors:
-            fallback += f"（错误信息：{errors[-1]}）"
+            fallback = (
+                self.i18n.t("chat.fallback_error_detail", error=errors[-1])
+                + "\n"
+                + summary
+            )
+        else:
+            fallback = self.i18n.t("chat.fallback_error") + "\n" + summary
         self.add_message("assistant", fallback)
         return fallback
 

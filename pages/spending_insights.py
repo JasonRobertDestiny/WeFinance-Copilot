@@ -46,25 +46,33 @@ def _prepare_dashboard_data(
     }
 
 
-def _render_active_anomalies(anomalies: List[dict], threshold_used: float) -> None:
+def _render_active_anomalies(
+    anomalies: List[dict], threshold_used: float, i18n
+) -> None:
     """Display active anomalies with action buttons."""
     if anomalies:
-        st.subheader("⚠️ 待确认的异常支出")
-        st.caption(f"当前检测阈值：±{threshold_used:.1f} σ")
+        st.subheader(f"⚠️ {i18n.t('spending.anomaly_pending')}")
+        st.caption(
+            i18n.t("spending.anomaly_threshold", threshold=f"{threshold_used:.1f}")
+        )
     for anomaly in anomalies:
         date_str = anomaly.get("date") or "-"
         merchant = anomaly.get("merchant", "未知商户")
         amount = anomaly.get("amount", 0.0)
-        reason = anomaly.get("reason", "异常支出")
+        reason = anomaly.get("reason", "")
         status = anomaly.get("status", "new")
 
         box = st.warning if status == "new" else st.info
-        with box(f"{date_str} | {merchant} | ¥{amount:.2f} | {reason}"):
+        with box(
+            f"{i18n.t('app.anomaly_info', date=date_str, merchant=merchant, amount=float(amount))}"
+        ):
+            if reason:
+                st.caption(reason)
             cols = st.columns(2)
             confirm_key = f"confirm_{anomaly['transaction_id']}"
             fraud_key = f"fraud_{anomaly['transaction_id']}"
 
-            if cols[0].button("确认本人消费", key=confirm_key):
+            if cols[0].button(i18n.t("common.btn_confirm"), key=confirm_key):
                 session_utils.record_anomaly_feedback(anomaly, "confirmed")
                 remaining = [
                     item
@@ -72,10 +80,10 @@ def _render_active_anomalies(anomalies: List[dict], threshold_used: float) -> No
                     if item.get("transaction_id") != anomaly["transaction_id"]
                 ]
                 session_utils.update_anomaly_state(active=remaining)
-                st.toast("已标记为本人消费 ✅")
-                st.experimental_rerun()
+                st.toast(i18n.t("common.toast_confirmed"))
+                st.rerun()
 
-            if cols[1].button("标记为疑似欺诈", key=fraud_key):
+            if cols[1].button(i18n.t("common.btn_mark_fraud"), key=fraud_key):
                 session_utils.record_anomaly_feedback(anomaly, "fraud")
                 remaining = [
                     item
@@ -83,59 +91,64 @@ def _render_active_anomalies(anomalies: List[dict], threshold_used: float) -> No
                     if item.get("transaction_id") != anomaly["transaction_id"]
                 ]
                 session_utils.update_anomaly_state(active=remaining)
-                st.toast("已标记为疑似欺诈 ⚠️")
-                st.experimental_rerun()
+                st.toast(i18n.t("common.toast_fraud"))
+                st.rerun()
 
 
-def _render_sidebar_controls(trusted_merchants: List[str]) -> None:
+def _render_sidebar_controls(trusted_merchants: List[str], i18n) -> None:
     """Render merchant whitelist management and anomaly history in sidebar."""
-    with st.sidebar.expander("✅ 信任商户管理", expanded=False):
+    with st.sidebar.expander(i18n.t("spending.trusted_manager"), expanded=False):
         with st.form("trusted_merchants_form"):
-            new_merchant = st.text_input("新增信任商户名称")
-            added = st.form_submit_button("添加白名单商户")
+            new_merchant = st.text_input(i18n.t("spending.trusted_add_placeholder"))
+            added = st.form_submit_button(i18n.t("spending.trusted_add"))
             if added:
                 session_utils.add_trusted_merchant(new_merchant)
-                st.toast(f"已添加「{new_merchant}」至白名单")
-                st.experimental_rerun()
+                st.toast(i18n.t("common.toast_added", name=new_merchant))
+                st.rerun()
 
         if trusted_merchants:
-            st.caption("当前白名单：")
+            st.caption(i18n.t("spending.trusted_list_title"))
             for idx, merchant in enumerate(trusted_merchants, start=1):
                 cols = st.columns([0.8, 0.2])
                 cols[0].write(f"{idx}. {merchant}")
-                if cols[1].button("移除", key=f"remove_whitelist_{idx}"):
+                if cols[1].button("✖", key=f"remove_whitelist_{idx}"):
                     session_utils.remove_trusted_merchant(merchant)
-                    st.toast(f"已移除「{merchant}」")
-                    st.experimental_rerun()
+                    st.toast(i18n.t("common.toast_removed", name=merchant))
+                    st.rerun()
         else:
-            st.info("暂无白名单商户，检测将覆盖所有交易。")
+            st.info(i18n.t("spending.trusted_empty"))
 
     history = session_utils.get_anomaly_history()
-    with st.sidebar.expander("📚 异常反馈历史", expanded=False):
+    with st.sidebar.expander(i18n.t("spending.history_title"), expanded=False):
         if not history:
-            st.write("暂无历史记录。")
+            st.write(i18n.t("spending.history_empty"))
         else:
             for record in history:
                 merchant = record.get("merchant", "未知商户")
                 amount = record.get("amount", 0.0)
                 status = record.get("status", "confirmed")
                 date_str = record.get("date", "-")
-                label = "✅ 本人消费" if status == "confirmed" else "🚨 疑似欺诈"
+                label = (
+                    "✅ " + i18n.t("common.btn_confirm")
+                    if status == "confirmed"
+                    else "🚨 " + i18n.t("common.btn_mark_fraud")
+                )
                 st.write(f"{date_str} | {merchant} | ¥{amount:.2f} | {label}")
 
 
 def render() -> None:
     """Render enhanced analytics dashboard with Plotly visualisations."""
-    st.title("📊 消费分析仪表盘")
-    st.write("查看分类占比、时间趋势、异常支出以及AI生成的关键洞察。")
+    i18n = session_utils.get_i18n()
+    st.title(i18n.t("spending.title"))
+    st.write(i18n.t("spending.description"))
 
     transactions = session_utils.get_transactions()
     if not transactions:
-        st.warning("请先上传账单，再回到该页面查看自动生成的分析报告。")
+        st.warning(i18n.t("spending.require_upload"))
         return
 
     trusted_merchants = session_utils.get_trusted_merchants()
-    _render_sidebar_controls(trusted_merchants)
+    _render_sidebar_controls(trusted_merchants, i18n)
 
     serialized = tuple(
         tuple(sorted(tx.model_dump().items(), key=lambda item: item[0]))
@@ -155,12 +168,14 @@ def render() -> None:
 
     anomaly_message = anomaly_report.get("message")
     if anomaly_message:
-        st.info(anomaly_message)
+        st.info(i18n.t(anomaly_message))
 
-    _render_active_anomalies(active_anomalies, anomaly_report.get("threshold_used", 2.5))
+    _render_active_anomalies(
+        active_anomalies, anomaly_report.get("threshold_used", 2.5), i18n
+    )
 
     if totals:
-        with st.expander("📈 分类支出占比与柱状图", expanded=False):
+        with st.expander(i18n.t("spending.category_title"), expanded=False):
             pie_df = pd.DataFrame(
                 [{"category": cat, "amount": amt} for cat, amt in totals.items()]
             )
@@ -180,26 +195,32 @@ def render() -> None:
                 x="category",
                 y="amount",
                 text="amount",
-                title="各分类总支出",
-                labels={"category": "分类", "amount": "金额（元）"},
+                title=i18n.t("spending.category_title"),
+                labels={
+                    "category": i18n.t("spending.label_category"),
+                    "amount": i18n.t("spending.label_amount"),
+                },
             )
             fig_bar.update_traces(texttemplate="¥%{text:.2f}", textposition="outside")
-            fig_bar.update_layout(yaxis_title="金额（元）")
+            fig_bar.update_layout(yaxis_title=i18n.t("spending.label_amount"))
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with st.expander("📅 支出趋势图", expanded=False):
+    with st.expander(i18n.t("spending.trend_title"), expanded=False):
         if not trend_daily.empty:
             fig_line = px.line(
                 trend_daily,
                 x="period",
                 y="amount",
                 markers=True,
-                title="每日支出趋势",
-                labels={"period": "日期", "amount": "金额（元）"},
+                title=i18n.t("spending.trend_title"),
+                labels={
+                    "period": i18n.t("spending.label_date"),
+                    "amount": i18n.t("spending.label_amount"),
+                },
             )
             st.plotly_chart(fig_line, use_container_width=True)
         else:
-            st.info("每日趋势数据不足，待有更多交易后展示。")
+            st.info(i18n.t("spending.trend_daily_empty"))
 
         if not trend_monthly.empty and len(trend_monthly) > 1:
             fig_month = px.line(
@@ -207,14 +228,17 @@ def render() -> None:
                 x="period",
                 y="amount",
                 markers=True,
-                title="月度支出趋势",
-                labels={"period": "月份", "amount": "金额（元）"},
+                title=i18n.t("spending.trend_title"),
+                labels={
+                    "period": i18n.t("spending.label_month"),
+                    "amount": i18n.t("spending.label_amount"),
+                },
             )
             st.plotly_chart(fig_month, use_container_width=True)
 
-    with st.expander("🤖 AI消费洞察", expanded=False):
+    with st.expander(i18n.t("spending.insight_title"), expanded=False):
         if insights:
             for insight in insights:
                 st.success(f"**{insight.title}**：{insight.detail}")
         else:
-            st.info("暂无洞察。敬请期待下一版本的深入分析能力。")
+            st.info(i18n.t("spending.insight_none"))

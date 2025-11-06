@@ -16,7 +16,9 @@ class Transaction(BaseModel):
     merchant: str = Field(..., description="Merchant or counterparty name.")
     category: str = Field(..., description="Spending category label.")
     amount: float = Field(..., description="Positive numbers represent expenses.")
-    currency: str = Field(default="CNY", description="Currency code in ISO-4217 format.")
+    currency: str = Field(
+        default="CNY", description="Currency code in ISO-4217 format."
+    )
     payment_method: Optional[str] = Field(
         default=None, description="Payment instrument such as 微信支付."
     )

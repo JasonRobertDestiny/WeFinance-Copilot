@@ -17,6 +17,16 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _t(key: str, fallback: str) -> str:
+    """Translate error messages when i18n is available."""
+    try:
+        from utils.session import get_i18n  # Imported lazily
+
+        return get_i18n().t(key)
+    except Exception:  # pylint: disable=broad-except
+        return fallback
+
+
 class StructuringService:
     """Calls OpenAI GPT-4o (or compatible) to extract transaction data in JSON."""
 
@@ -33,7 +43,12 @@ class StructuringService:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
         if not self.api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured. Please set it in .env.")
+            raise RuntimeError(
+                _t(
+                    "errors.api_key_missing",
+                    "OPENAI_API_KEY is not configured. Please set it in .env.",
+                )
+            )
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -64,10 +79,20 @@ class StructuringService:
             )
         except OpenAIError as exc:  # pragma: no cover - network dependency
             logger.error("调用GPT结构化接口失败：%s", exc)
-            raise RuntimeError("结构化模型调用失败，请稍后重试。") from exc
+            raise RuntimeError(
+                _t(
+                    "errors.structuring_fail",
+                    "Structuring model request failed. Please retry later.",
+                )
+            ) from exc
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("结构化模型未知错误：%s", exc)
-            raise RuntimeError("结构化模型出现未知错误，请稍后再试。") from exc
+            raise RuntimeError(
+                _t(
+                    "errors.structuring_fail",
+                    "An unexpected structuring error occurred.",
+                )
+            ) from exc
 
         content = completion.choices[0].message.content
         if content is None:
@@ -76,11 +101,18 @@ class StructuringService:
         try:
             payload = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise RuntimeError("模型返回的内容不是有效的JSON。") from exc
+            raise RuntimeError(
+                _t("errors.structuring_fail", "Model response was not valid JSON.")
+            ) from exc
 
         transactions_payload = payload.get("transactions", [])
         if not isinstance(transactions_payload, list):
-            raise RuntimeError("返回JSON缺少transactions数组。")
+            raise RuntimeError(
+                _t(
+                    "errors.structuring_fail",
+                    "Model response missing 'transactions' array.",
+                )
+            )
 
         transactions: List[Transaction] = []
         for entry in transactions_payload:

@@ -26,6 +26,7 @@ DEFAULT_STATE: Dict[str, Any] = {
     "anomaly_message": "",
     "locale": "zh_CN",
     "chat_cache": {},
+    "monthly_budget": 5000.0,
 }
 
 
@@ -60,7 +61,10 @@ def _normalize_transaction(entry: Transaction | dict) -> Transaction:
 
 def get_transactions() -> List[Transaction]:
     """Return transactions stored in session as `Transaction` models."""
-    return [_normalize_transaction(entry) for entry in st.session_state.get("transactions", [])]
+    return [
+        _normalize_transaction(entry)
+        for entry in st.session_state.get("transactions", [])
+    ]
 
 
 def set_transactions(transactions: Iterable[Transaction | dict]) -> None:
@@ -125,9 +129,13 @@ def update_anomaly_state(
 ) -> None:
     """Persist anomaly state back into session."""
     if active is not None:
-        st.session_state["anomaly_flags"] = [_serialize_anomaly(item) for item in active]
+        st.session_state["anomaly_flags"] = [
+            _serialize_anomaly(item) for item in active
+        ]
     if history is not None:
-        st.session_state["anomaly_history"] = [_serialize_anomaly(item) for item in history]
+        st.session_state["anomaly_history"] = [
+            _serialize_anomaly(item) for item in history
+        ]
     if message is not None:
         st.session_state["anomaly_message"] = message
 
@@ -152,9 +160,7 @@ def sync_anomaly_state(report: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     Returns the active anomalies list for immediate use.
     """
-    history_map = {
-        item.get("transaction_id"): item for item in get_anomaly_history()
-    }
+    history_map = {item.get("transaction_id"): item for item in get_anomaly_history()}
     active: List[Dict[str, Any]] = []
     for anomaly in report.get("items", []):
         anomaly = dict(anomaly)
@@ -185,3 +191,13 @@ def switch_locale(locale: str) -> None:
     st.session_state["locale"] = locale
     i18n = get_i18n()
     i18n.switch_locale(locale)
+
+
+def get_monthly_budget() -> float:
+    """Return the globally configured monthly budget."""
+    return float(st.session_state.get("monthly_budget", 5000.0))
+
+
+def set_monthly_budget(amount: float) -> None:
+    """Persist the monthly budget."""
+    st.session_state["monthly_budget"] = max(0.0, float(amount))
