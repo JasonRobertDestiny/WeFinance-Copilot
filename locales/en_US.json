@@ -46,6 +46,14 @@
     "monthly_budget_help": "Set your monthly budget, AI advisor and analysis features will use this value automatically",
     "current_budget_display": "Current budget: {budget}",
     "budget_updated": "Budget updated",
+    "data_management_title": "Data Management",
+    "export_data": "Export Data",
+    "export_data_help": "Download all data as a JSON file",
+    "download_json": "Download JSON",
+    "clear_data": "Clear Data",
+    "clear_data_help": "Delete all locally saved data",
+    "data_cleared": "All data has been cleared",
+    "confirm_clear_warning": "⚠️ Are you sure you want to clear all data? This action cannot be undone. Click \"Clear Data\" again to confirm.",
     "navigation_label": "Navigation"
   },
   "navigation": {
@@ -135,11 +143,14 @@
     "manual_table_warning": "Please provide at least one complete transaction (date, merchant, category, amount).",
     "processing_status": "Processing bill files...",
     "recognized_count": "Recognized {count} transaction(s)",
+    "ocr_success": "Successfully identified {count} transactions",
     "transaction_preview": "  {date} | {merchant} | ¥{amount}",
     "and_more": "and {count} more",
     "no_transactions_in_file": "No transactions found",
     "file_process_error": "Failed to process {filename}: {error}",
-    "all_files_processed": "✅ Done! Processed {total} file(s), recognized {transactions} transaction(s)"
+    "all_files_processed": "✅ Done! Processed {total} file(s), recognized {transactions} transaction(s)",
+    "fallback_option": "Alternative Option",
+    "manual_entry_btn": "Switch to Manual Entry"
   },
   "spending": {
     "title": "📊 Spending Analysis Dashboard",

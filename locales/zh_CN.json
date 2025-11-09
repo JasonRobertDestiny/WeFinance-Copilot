@@ -46,6 +46,14 @@
     "monthly_budget_help": "设置您的月度预算，AI顾问和分析功能将自动使用此值",
     "current_budget_display": "当前预算：{budget}",
     "budget_updated": "预算已更新",
+    "data_management_title": "数据管理",
+    "export_data": "导出数据",
+    "export_data_help": "下载所有数据为JSON文件",
+    "download_json": "下载JSON",
+    "clear_data": "清除数据",
+    "clear_data_help": "删除所有本地保存的数据",
+    "data_cleared": "所有数据已清除",
+    "confirm_clear_warning": "⚠️ 确定要清除所有数据吗？此操作不可恢复。再次点击\"清除数据\"确认。",
     "navigation_label": "导航"
   },
   "navigation": {
@@ -135,11 +143,14 @@
     "manual_table_warning": "请至少填写一条完整交易（日期、商户、分类、金额）。",
     "processing_status": "正在处理账单文件...",
     "recognized_count": "识别到 {count} 笔交易",
+    "ocr_success": "成功识别 {count} 笔交易记录",
     "transaction_preview": "  {date} | {merchant} | ¥{amount}",
     "and_more": "以及其他 {count} 笔",
     "no_transactions_in_file": "未识别到交易记录",
     "file_process_error": "文件 {filename} 处理失败：{error}",
-    "all_files_processed": "✅ 完成！共处理 {total} 个文件，识别 {transactions} 笔交易"
+    "all_files_processed": "✅ 完成！共处理 {total} 个文件，识别 {transactions} 笔交易",
+    "fallback_option": "备选方案",
+    "manual_entry_btn": "改用手动输入"
   },
   "spending": {
     "title": "📊 消费分析仪表盘",

@@ -7,6 +7,7 @@ from typing import BinaryIO, Iterable, List, Optional
 
 from models.entities import OCRParseResult, Transaction
 from services.vision_ocr_service import VisionOCRService
+from utils.error_handling import UserFacingError
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class OCRService:
                 )
             )
 
+        except UserFacingError:
+            raise
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("OCR识别失败：%s", exc)
             raise RuntimeError(
@@ -133,6 +136,9 @@ class OCRService:
                 )
                 logger.info(f"文件 {filename} 识别到 {len(transactions)} 条交易记录")
 
+            except UserFacingError:
+                # 让UI层展示友好错误
+                raise
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error(f"处理文件 {filename} 失败: {exc}")
                 # 返回空结果而不是抛出异常，让用户可以继续处理其他文件

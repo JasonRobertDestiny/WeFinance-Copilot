@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from datetime import date
 from typing import Any, Dict, Iterable, List
@@ -10,6 +11,9 @@ import streamlit as st
 
 from models.entities import Transaction
 from utils.i18n import I18n
+from utils.storage import save_to_storage
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_STATE: Dict[str, Any] = {
@@ -27,6 +31,7 @@ DEFAULT_STATE: Dict[str, Any] = {
     "locale": "zh_CN",
     "chat_cache": {},
     "monthly_budget": 5000.0,
+    "data_restored": False,
 }
 
 
@@ -59,6 +64,25 @@ def _normalize_transaction(entry: Transaction | dict) -> Transaction:
     return Transaction(**entry)
 
 
+def _serialize_transaction_entry(entry: Transaction | dict) -> Dict[str, Any]:
+    """Convert transaction input into a JSON-serialisable dict."""
+    if isinstance(entry, Transaction):
+        data = entry.model_dump(mode="json")
+    else:
+        data = dict(entry)
+        if isinstance(data.get("date"), date):
+            data["date"] = data["date"].isoformat()
+    return data
+
+
+def _persist_state(key: str, value: Any) -> None:
+    """Persist a session value to storage while swallowing I/O errors."""
+    try:
+        save_to_storage(key, value)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to persist %s: %s", key, exc)
+
+
 def get_transactions() -> List[Transaction]:
     """Return transactions stored in session as `Transaction` models."""
     return [
@@ -69,13 +93,9 @@ def get_transactions() -> List[Transaction]:
 
 def set_transactions(transactions: Iterable[Transaction | dict]) -> None:
     """Persist a new transaction list into session state."""
-    serialized = []
-    for txn in transactions:
-        if isinstance(txn, Transaction):
-            serialized.append(txn.model_dump())
-        elif isinstance(txn, dict):
-            serialized.append(txn)
+    serialized = [_serialize_transaction_entry(txn) for txn in transactions]
     st.session_state["transactions"] = serialized
+    _persist_state("transactions", serialized)
 
 
 def get_trusted_merchants() -> List[str]:
@@ -200,4 +220,34 @@ def get_monthly_budget() -> float:
 
 def set_monthly_budget(amount: float) -> None:
     """Persist the monthly budget."""
-    st.session_state["monthly_budget"] = max(0.0, float(amount))
+    normalized = max(0.0, float(amount))
+    st.session_state["monthly_budget"] = normalized
+    _persist_state("monthly_budget", normalized)
+
+
+def get_chat_history() -> List[Dict[str, Any]]:
+    """Return a copy of the conversational history."""
+    history = st.session_state.get("chat_history", [])
+    return [dict(message) for message in history]
+
+
+def set_chat_history(messages: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Persist chat history updates."""
+    serialized = [dict(message) for message in messages]
+    st.session_state["chat_history"] = serialized
+    _persist_state("chat_history", serialized)
+    return serialized
+
+
+def set_analysis_summary(items: Iterable[Dict[str, Any]]) -> None:
+    """Persist the analysis summary cards."""
+    summary = [dict(item) for item in items]
+    st.session_state["analysis_summary"] = summary
+    _persist_state("analysis_summary", summary)
+
+
+def set_product_recommendations(items: Iterable[Dict[str, Any]]) -> None:
+    """Persist generated investment recommendations."""
+    recommendations = [dict(item) for item in items]
+    st.session_state["product_recommendations"] = recommendations
+    _persist_state("product_recommendations", recommendations)

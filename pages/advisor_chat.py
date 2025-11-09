@@ -7,7 +7,12 @@ from typing import List
 import streamlit as st
 
 from modules.chat_manager import ChatManager
-from utils.session import get_i18n, get_monthly_budget
+from utils.session import (
+    get_chat_history,
+    get_i18n,
+    get_monthly_budget,
+    set_chat_history,
+)
 
 
 def _init_session_defaults() -> None:
@@ -22,7 +27,7 @@ def render() -> None:
     st.write(i18n.t("chat.subtitle"))
 
     _init_session_defaults()
-    history: List[dict] = st.session_state["chat_history"]
+    history: List[dict] = get_chat_history()
     transactions = st.session_state.get("transactions", [])
 
     current_budget = get_monthly_budget()
@@ -65,6 +70,7 @@ def render() -> None:
         return
 
     history.append({"role": "user", "content": user_prompt})
+    history = set_chat_history(history)
     with st.chat_message("user"):
         st.write(user_prompt)
 
@@ -72,6 +78,7 @@ def render() -> None:
     if user_prompt in cache:
         cached_reply = cache[user_prompt]
         history.append({"role": "assistant", "content": cached_reply})
+        history = set_chat_history(history)
         with st.chat_message("assistant"):
             st.write(cached_reply)
             st.caption(i18n.t("common.cache_hit"))
@@ -85,6 +92,8 @@ def render() -> None:
                 first_key = next(iter(cache))
                 cache.pop(first_key, None)
             st.write(response)
+    history.append({"role": "assistant", "content": response})
+    set_chat_history(history)
 
 
 if __name__ == "__main__":  # pragma: no cover - streamlit entry point

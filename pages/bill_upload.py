@@ -14,7 +14,8 @@ import streamlit as st
 from models.entities import OCRParseResult, Transaction
 from modules.analysis import generate_insights
 from services.ocr_service import OCRService
-from utils.session import get_i18n, set_transactions
+from utils.error_handling import UserFacingError
+from utils.session import get_i18n, set_analysis_summary, set_transactions
 
 
 def _parse_manual_input(raw_text: str, i18n=None) -> List[Transaction]:
@@ -68,11 +69,13 @@ def _render_manual_entry(i18n) -> None:
         st.session_state["uploaded_files_count"] = 0
 
         insights = generate_insights(transactions)
-        st.session_state["analysis_summary"] = [ins.model_dump() for ins in insights]
+        insight_payload = [ins.model_dump() for ins in insights]
+        set_analysis_summary(insight_payload)
 
         st.success(i18n.t("bill_upload.manual_success", count=len(transactions)))
         st.session_state.setdefault("manual_entries", [])
         st.session_state["manual_table_entries"] = []
+        st.session_state["show_manual_entry"] = False
         _render_analysis(transactions, insights, [], i18n)
 
     st.subheader(i18n.t("bill_upload.manual_header"))
@@ -256,80 +259,106 @@ def render() -> None:
         return
 
     ocr_service = OCRService()
-    manual_mode = False
+    manual_mode = bool(st.session_state.get("show_manual_entry", False))
     results: list[OCRParseResult | dict] = []
     total_files = len(uploaded_files)
     total_transactions_detected = 0
 
-    with st.status(i18n.t("bill_upload.processing_status"), expanded=True) as status:
-        for idx, uploaded_file in enumerate(uploaded_files, 1):
-            filename = getattr(
-                uploaded_file,
-                "name",
-                i18n.t("common.unnamed_file"),
-            )
-            st.write(
-                f"📄 "
-                + i18n.t(
-                    "bill_upload.processing_file",
-                    current=idx,
-                    total=total_files,
-                    filename=filename,
+    try:
+        with st.status(
+            i18n.t("bill_upload.processing_status"), expanded=True
+        ) as status:
+            for idx, uploaded_file in enumerate(uploaded_files, 1):
+                filename = getattr(
+                    uploaded_file,
+                    "name",
+                    i18n.t("common.unnamed_file"),
                 )
-            )
-            try:
-                file_results = ocr_service.process_files([uploaded_file])
-                results.extend(file_results)
-                if file_results and file_results[0].transactions:
-                    txn_list = file_results[0].transactions
-                    total_transactions_detected += len(txn_list)
-                    st.success(
-                        i18n.t(
-                            "bill_upload.recognized_count",
-                            count=len(txn_list),
-                        )
-                    )
-                    for txn in txn_list[:3]:
-                        st.caption(
-                            i18n.t(
-                                "bill_upload.transaction_preview",
-                                date=txn.date,
-                                merchant=txn.merchant,
-                                amount=f"{txn.amount:.2f}",
-                            )
-                        )
-                    if len(txn_list) > 3:
-                        st.caption(
-                            i18n.t(
-                                "bill_upload.and_more",
-                                count=len(txn_list) - 3,
-                            )
-                        )
-                else:
-                    st.warning(i18n.t("bill_upload.no_transactions_in_file"))
-                    manual_mode = True
-            except Exception as exc:  # pylint: disable=broad-except
-                st.error(
-                    i18n.t(
-                        "bill_upload.file_process_error",
+                st.write(
+                    f"📄 "
+                    + i18n.t(
+                        "bill_upload.processing_file",
+                        current=idx,
+                        total=total_files,
                         filename=filename,
-                        error=str(exc),
                     )
                 )
-                manual_mode = True
-        status.update(
-            label=i18n.t(
-                "bill_upload.all_files_processed",
-                total=total_files,
-                transactions=total_transactions_detected,
-            ),
-            state="complete",
-            expanded=False,
-        )
+                try:
+                    file_results = ocr_service.process_files([uploaded_file])
+                    results.extend(file_results)
+                    if file_results and file_results[0].transactions:
+                        txn_list = file_results[0].transactions
+                        total_transactions_detected += len(txn_list)
+                        st.success(
+                            i18n.t(
+                                "bill_upload.recognized_count",
+                                count=len(txn_list),
+                            )
+                        )
+                        for txn in txn_list[:3]:
+                            st.caption(
+                                i18n.t(
+                                    "bill_upload.transaction_preview",
+                                    date=txn.date,
+                                    merchant=txn.merchant,
+                                    amount=f"{txn.amount:.2f}",
+                                )
+                            )
+                        if len(txn_list) > 3:
+                            st.caption(
+                                i18n.t(
+                                    "bill_upload.and_more",
+                                    count=len(txn_list) - 3,
+                                )
+                            )
+                    else:
+                        st.warning(i18n.t("bill_upload.no_transactions_in_file"))
+                        manual_mode = True
+                        st.session_state["show_manual_entry"] = True
+                except UserFacingError:
+                    raise
+                except Exception as exc:  # pylint: disable=broad-except
+                    st.error(
+                        i18n.t(
+                            "bill_upload.file_process_error",
+                            filename=filename,
+                            error=str(exc),
+                        )
+                    )
+                    manual_mode = True
+                    st.session_state["show_manual_entry"] = True
+            status.update(
+                label=i18n.t(
+                    "bill_upload.all_files_processed",
+                    total=total_files,
+                    transactions=total_transactions_detected,
+                ),
+                state="complete",
+                expanded=False,
+            )
+    except UserFacingError as err:
+        st.error(f"❌ {err.message}")
+        if err.suggestion:
+            st.info(f"💡 {err.suggestion}")
+        st.markdown("---")
+        st.markdown(f"**{i18n.t('bill_upload.fallback_option')}**")
+        if st.button(
+            i18n.t("bill_upload.manual_entry_btn"),
+            type="primary",
+            key="fallback_to_manual",
+        ):
+            st.session_state["show_manual_entry"] = True
+        if st.session_state.get("show_manual_entry"):
+            _render_manual_entry(i18n)
+        return
+
+    if total_transactions_detected:
+        st.success(i18n.t("bill_upload.ocr_success", count=total_transactions_detected))
 
     if not results:
         st.warning(i18n.t("bill_upload.warning_no_txn"))
         manual_mode = True
+        st.session_state["show_manual_entry"] = True
 
     transactions: list[Transaction] = []
     raw_texts: list[str] = []
@@ -356,11 +385,14 @@ def render() -> None:
         st.session_state["ocr_results"] = serialized_results
         st.session_state["uploaded_files_count"] = len(serialized_results)
         insights = generate_insights(transactions)
-        st.session_state["analysis_summary"] = [ins.model_dump() for ins in insights]
+        insight_payload = [ins.model_dump() for ins in insights]
+        set_analysis_summary(insight_payload)
         st.success(i18n.t("bill_upload.success", count=len(transactions)))
+        st.session_state["show_manual_entry"] = False
         _render_analysis(transactions, insights, serialized_results, i18n)
     else:
         manual_mode = True
+        st.session_state["show_manual_entry"] = True
 
     if manual_mode:
         _render_manual_entry(i18n)

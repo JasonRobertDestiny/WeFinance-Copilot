@@ -10,7 +10,7 @@ import streamlit as st
 
 from models.entities import Recommendation, Transaction
 from services.recommendation_service import RecommendationService
-from utils.session import get_i18n
+from utils.session import get_i18n, set_product_recommendations
 
 RISK_QUESTIONS: List[Dict[str, object]] = [
     {
@@ -207,9 +207,10 @@ def render() -> None:
 
         _render_results(results)
         # Persist to session for downstream usage or export.
-        st.session_state["product_recommendations"] = [
+        recommendation_payload = [
             results["recommendation"].model_dump()  # type: ignore[attr-defined]
         ]
+        set_product_recommendations(recommendation_payload)
         st.session_state["recommendation_explanation"] = results
     else:
         cached = st.session_state.get("recommendation_explanation")

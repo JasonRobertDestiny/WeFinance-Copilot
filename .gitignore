@@ -70,3 +70,4 @@ htmlcov/
 *.tmp
 temp/
 tmp/
+.wefinance/

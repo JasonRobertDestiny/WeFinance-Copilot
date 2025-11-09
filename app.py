@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime
 from typing import Callable
 
 import streamlit as st
 
+from models.entities import Transaction
 from pages import advisor_chat, bill_upload, investment_recs, spending_insights
 from modules.analysis import compute_anomaly_report
 from utils import session as session_utils
@@ -16,8 +19,53 @@ from utils.session import (
     reset_session_state,
     switch_locale,
 )
+from utils.storage import clear_all_storage, load_from_storage
 
 logger = logging.getLogger(__name__)
+
+
+def restore_data_from_storage() -> None:
+    """Hydrate Streamlit session state from persisted storage."""
+    if st.session_state.get("data_restored", False):
+        return
+
+    try:
+        transactions_payload = load_from_storage("transactions", []) or []
+        if transactions_payload:
+            transactions: list[Transaction] = []
+            for entry in transactions_payload:
+                if isinstance(entry, Transaction):
+                    transactions.append(entry)
+                elif isinstance(entry, dict):
+                    transactions.append(Transaction(**entry))
+            st.session_state["transactions"] = [
+                txn.model_dump(mode="json") for txn in transactions
+            ]
+            logger.info("Restored %d transactions from storage", len(transactions))
+
+        budget = load_from_storage("monthly_budget", 5000.0)
+        if budget is not None:
+            st.session_state["monthly_budget"] = float(budget)
+
+        chat_history = load_from_storage("chat_history", []) or []
+        st.session_state["chat_history"] = list(chat_history)
+
+        analysis_summary = load_from_storage("analysis_summary", None)
+        if analysis_summary:
+            st.session_state["analysis_summary"] = analysis_summary
+
+        product_recommendations = load_from_storage("product_recommendations", None)
+        if product_recommendations:
+            st.session_state["product_recommendations"] = product_recommendations
+
+        st.session_state["data_restored"] = True
+        logger.info("Data restoration completed")
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Failed to restore data from storage: %s", exc)
+        st.session_state["data_restored"] = True
+
+
+restore_data_from_storage()
 
 st.set_page_config(
     page_title="WeFinance Copilot",
@@ -276,7 +324,65 @@ def main() -> None:
             st.toast(i18n.t("app.budget_updated"))
 
         # 显示当前预算（带格式化）(Display current budget with formatting)
-        st.caption(f"💰 {i18n.t('app.current_budget_display', budget=f'¥{new_budget:,.0f}')}")
+        st.caption(
+            f"💰 {i18n.t('app.current_budget_display', budget=f'¥{new_budget:,.0f}')}"
+        )
+
+        st.markdown("---")
+        st.markdown(f"**{i18n.t('app.data_management_title')}**")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button(
+                i18n.t("app.export_data"),
+                help=i18n.t("app.export_data_help"),
+                key="export_data_btn",
+                use_container_width=True,
+            ):
+                export_data = {
+                    "transactions": load_from_storage("transactions", []),
+                    "monthly_budget": load_from_storage("monthly_budget", 5000.0),
+                    "chat_history": load_from_storage("chat_history", []),
+                    "analysis_summary": load_from_storage("analysis_summary", []),
+                    "product_recommendations": load_from_storage(
+                        "product_recommendations", []
+                    ),
+                    "export_time": datetime.now().isoformat(),
+                }
+                json_data = json.dumps(export_data, ensure_ascii=False, indent=2)
+                st.download_button(
+                    label=i18n.t("app.download_json"),
+                    data=json_data,
+                    file_name=f"wefinance_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                    key="download_json_btn",
+                    use_container_width=True,
+                )
+
+        with col2:
+            if st.button(
+                i18n.t("app.clear_data"),
+                help=i18n.t("app.clear_data_help"),
+                key="clear_data_btn",
+                type="secondary",
+                use_container_width=True,
+            ):
+                if st.session_state.get("confirm_clear", False):
+                    clear_all_storage()
+                    protected_keys = {"selected_page", "locale", "data_restored"}
+                    for state_key in list(st.session_state.keys()):
+                        if state_key not in protected_keys:
+                            del st.session_state[state_key]
+                    st.toast(i18n.t("app.data_cleared"))
+                    st.session_state["confirm_clear"] = False
+                    st.session_state["data_restored"] = False
+                    st.rerun()
+                else:
+                    st.session_state["confirm_clear"] = True
+
+        if st.session_state.get("confirm_clear"):
+            st.warning(i18n.t("app.confirm_clear_warning"))
 
         st.markdown("---")
 

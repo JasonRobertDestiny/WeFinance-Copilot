@@ -11,6 +11,7 @@ from typing import List, Optional
 from openai import OpenAI
 
 from models.entities import Transaction
+from utils.error_handling import safe_call
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,8 @@ class VisionOCRService:
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         logger.info(f"初始化视觉OCR服务，使用模型：{self.model}")
 
-    def extract_transactions_from_image(
-        self, image_bytes: bytes
-    ) -> List[Transaction]:
+    @safe_call(timeout=30, error_message="账单识别失败")
+    def extract_transactions_from_image(self, image_bytes: bytes) -> List[Transaction]:
         """
         从图片中提取交易记录
 
@@ -152,9 +152,9 @@ class VisionOCRService:
             logger.info(f"成功从图片中提取 {len(transactions)} 条交易记录")
             return transactions
 
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON解析失败: {e}, 原始响应: {content}")
-            return []
-        except Exception as e:
-            logger.error(f"视觉OCR识别失败: {e}")
-            return []
+        except json.JSONDecodeError as exc:
+            logger.error("JSON解析失败: %s, 原始响应: %s", exc, content)
+            raise
+        except Exception as exc:
+            logger.error("视觉OCR识别失败: %s", exc)
+            raise
