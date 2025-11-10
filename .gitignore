@@ -71,3 +71,6 @@ htmlcov/
 temp/
 tmp/
 .wefinance/
+
+# Demo materials (local only, not for competition submission)
+demo/

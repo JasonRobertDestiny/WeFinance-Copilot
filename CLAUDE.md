@@ -8,7 +8,7 @@ WeFinance Copilot is an AI-powered financial assistant for the 2025 Shenzhen Fin
 
 **Key Architecture Decision**: Originally used PaddleOCR, but migrated to GPT-4o Vision OCR for 100% recognition accuracy (vs 0% with synthetic images). This is the core competitive advantage.
 
-**Project Roles**: See `.claude/PROJECT_RULES.md` for Claude Code and Codex collaboration workflow. Claude Code provides architecture/design, Codex implements.
+**Project Status**: Feature-complete for competition submission (deadline: 2025-11-16). Demo materials prepared (screenshots/, demo/wefinance_presentation.pptx).
 
 ## Essential Commands
 
@@ -55,8 +55,6 @@ pytest --cov=modules --cov=services --cov=utils --cov-report=term-missing
 # Generate HTML coverage report (opens htmlcov/index.html in browser)
 pytest --cov=modules --cov=services --cov=utils --cov-report=html
 ```
-
-**Current Coverage**: 58% (target 70%+). Weak spots: `chat_manager.py` (48%), `session.py` (36%), `vision_ocr_service.py` (no tests yet).
 
 ### Code Quality
 ```bash
@@ -149,6 +147,76 @@ st.session_state["transactions"] = transactions  # Bypasses validation/serializa
 - `trusted_merchants`: List[str] - Whitelist for anomaly detection
 - `i18n`: I18n - Lazy-loaded translation instance
 
+### Error Handling System (NEW - 2025-11-09)
+
+**Architecture**: Unified error handling with user-friendly messaging.
+
+**Location**: `utils/error_handling.py`
+
+**Key Components**:
+
+1. **UserFacingError**: Exception type safe to display to end users
+   - Contains user-friendly message
+   - Optional suggestion for resolution
+   - Preserves original technical error for logging
+
+2. **@safe_call decorator**: Adds timeout protection and error conversion
+   ```python
+   from utils.error_handling import safe_call
+
+   @safe_call(timeout=30, fallback=[], error_message="OCR识别失败")
+   def process_image(image_bytes):
+       # API call that might timeout or fail
+       return llm_api_call(image_bytes)
+   ```
+
+3. **Automatic error mapping**:
+   - Network errors → "网络连接不稳定"
+   - API auth errors → "API密钥配置错误"
+   - Rate limits → "API调用次数超过限制"
+   - JSON parse errors → "数据格式解析失败"
+
+**Best practices**:
+- Use `@safe_call` for all LLM API calls
+- Set appropriate timeout (30s for vision, 15s for chat)
+- Provide fallback values when graceful degradation is possible
+- Custom error messages for domain-specific failures
+
+### Persistent Storage System (NEW - 2025-11-09)
+
+**Architecture**: File-based persistence for session data across browser refreshes.
+
+**Location**: `utils/storage.py`
+
+**Key Features**:
+- JSON file backend (`~/.wefinance/data.json` by default)
+- Automatic fallback to workspace if home directory is not writable
+- Namespaced keys (`wefinance_` prefix)
+- Thread-safe atomic writes
+
+**Usage**:
+```python
+from utils.storage import save_to_storage, load_from_storage
+
+# Save user preferences
+save_to_storage("monthly_budget", 5000.0)
+
+# Load with default fallback
+budget = load_from_storage("monthly_budget", default=3000.0)
+```
+
+**Configuration**:
+- Override storage path via `WEFINANCE_STORAGE_FILE` env variable
+- Default paths (tried in order):
+  1. `~/.wefinance/data.json` (preferred)
+  2. `<workspace>/.wefinance/data.json` (fallback)
+
+**When to use**:
+- User preferences (budget, risk profile)
+- Trusted merchant whitelist
+- Anomaly detection history
+- NOT for sensitive data (no encryption)
+
 ### LLM Integration Patterns
 
 **Three LLM use cases**:
@@ -158,6 +226,7 @@ st.session_state["transactions"] = transactions  # Bypasses validation/serializa
    - Input: Image bytes (base64 encoded)
    - Output: Structured JSON → List[Transaction]
    - Temperature: 0.0 (deterministic)
+   - Timeout: 30s (via @safe_call decorator)
    - Prompt engineering: Specifies exact JSON format, valid categories, date format
    - Error handling: Returns empty list on failure (graceful degradation)
 
@@ -165,6 +234,7 @@ st.session_state["transactions"] = transactions  # Bypasses validation/serializa
    - Model: GPT-4o (text)
    - Input: User query + transaction context + budget context
    - Output: Natural language financial advice
+   - Timeout: 15s (via @safe_call decorator)
    - Caching: Query-level LRU cache (20 items, exact string match)
    - Context assembly: `_assemble_context()` formats transactions for prompt
 
@@ -172,6 +242,7 @@ st.session_state["transactions"] = transactions  # Bypasses validation/serializa
    - Model: GPT-4o (text)
    - Input: Transactions + risk profile + investment goal
    - Output: Structured recommendation with reasoning chain (explainable AI)
+   - Timeout: 30s (via @safe_call decorator)
    - Caching: Streamlit `@st.cache_data` on deterministic inputs (transaction hash)
 
 ### Internationalization (i18n)
@@ -232,56 +303,21 @@ The prompt is carefully engineered for structured output:
 
 ```python
 # Vision OCR failure → Return empty list, allow manual input
-except Exception as e:
-    logger.error(f"OCR failed: {e}")
-    return []  # NOT: raise
+from utils.error_handling import safe_call
 
-# LLM timeout → Use fallback response
-except TimeoutError:
-    return cached_or_default_response()  # NOT: raise
+@safe_call(timeout=30, fallback=[], error_message="OCR识别失败")
+def extract_transactions(image):
+    # API call
+    return results
 ```
 
 **Why**: User experience > perfect execution. Always provide a fallback path.
 
 **User-facing error messages**:
 - Translated via i18n system: `i18n.t("errors.api_key_missing")`
+- Converted via `error_handling.py` for technical errors
 - Logged at appropriate levels: `logger.error()`, `logger.warning()`, `logger.info()`
 - Never expose API keys, stack traces, or internal details to users
-
-### Test Coverage Requirements
-
-**Current status**: 58% coverage, target 70%+
-
-**Weak spots**:
-- `modules/chat_manager.py`: 48% (needs fallback, cache, whitelist tests)
-- `utils/session.py`: 36% (needs session init, locale switch, persistence tests)
-- `services/vision_ocr_service.py`: NEW FILE, no tests yet (high priority)
-
-**Testing Vision OCR**:
-```python
-# Use mocking to avoid real API calls
-from unittest.mock import patch, MagicMock
-
-@patch('services.vision_ocr_service.OpenAI')
-def test_extract_transactions(mock_openai):
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = '[{"date": "2025-11-01", ...}]'
-    mock_openai.return_value.chat.completions.create.return_value = mock_response
-
-    service = VisionOCRService()
-    transactions = service.extract_transactions_from_image(b'fake_image')
-
-    assert len(transactions) == 1
-    assert transactions[0].date == "2025-11-01"
-```
-
-**Test organization**:
-- `tests/test_integration.py`: End-to-end user scenarios (upload → analyze → chat → recommend)
-- `tests/test_ocr_service.py`: OCR service unit tests (vision OCR mocking)
-- `tests/test_chat_manager.py`: Chat manager unit tests (cache, context assembly)
-- `tests/test_session_state.py`: Session state helpers
-- `tests/test_structuring_service.py`: Legacy structuring service (deprecated)
-- `tests/test_i18n.py`: Internationalization tests
 
 ## Configuration
 
@@ -294,6 +330,9 @@ OPENAI_MODEL=gpt-4o
 
 # Optional: LLM provider selection (currently only supports openai)
 LLM_PROVIDER=openai
+
+# Optional: Storage path override
+WEFINANCE_STORAGE_FILE=/custom/path/to/data.json
 
 # Legacy PaddleOCR config (not used in Vision OCR pipeline)
 PADDLE_OCR_USE_ANGLE_CLASS="True"
@@ -316,10 +355,14 @@ PADDLE_OCR_LANG="ch"
 - PaddlePaddle (legacy) requires specific Python version
 - Consistent environment across development machines
 
-**Environment structure**:
-- Conda packages: numpy, pandas, scipy, opencv, pillow, plotly, pytest, black, ruff
-- Pip packages: streamlit, paddleocr, paddlepaddle, openai, langchain
-- Mixed installation: Use conda for scientific libs, pip for Python-only packages
+**Key Dependencies** (from requirements.txt):
+- **Web Framework**: streamlit>=1.37,<2.0
+- **LLM**: openai>=1.45.0, langchain>=0.2.10, langchain-openai>=0.1.7
+- **OCR**: paddleocr>=2.7.0.3 (legacy, not used)
+- **Data**: pandas>=2.0, numpy>=1.26, scikit-learn>=1.4
+- **Visualization**: plotly>=5.18
+- **Models**: pydantic>=2.0
+- **Utils**: python-dotenv>=1.0, pillow>=10.0
 
 **IMPORTANT**: Always activate environment before running any command:
 ```bash
@@ -327,7 +370,7 @@ conda activate wefinance
 ```
 
 **Updating dependencies**:
-1. Modify `environment.yml`
+1. Modify `environment.yml` or `requirements.txt`
 2. Run `conda env update -f environment.yml --prune`
 3. Test all functionality
 4. Commit changes
@@ -393,23 +436,46 @@ Generated with `generate_sample_bills.py` using Noto CJK fonts for realistic Chi
 - `category`: str (餐饮、交通、购物、娱乐、医疗、教育、其他)
 - `amount`: float
 
-### 6. Missing Timeout on LLM Calls
+### 6. Not Using Error Handling Utilities
 
-**Current issue**: No timeout set on LLM API calls (Task 5 in backlog).
-
-**Risk**: Hangs indefinitely if API is slow/unavailable.
-
-**TODO**: Add `timeout=30` to all LLM calls:
+**WRONG**: Raw API calls without protection
 ```python
-# In vision_ocr_service.py, chat_manager.py, recommendation_service.py
-response = self.client.chat.completions.create(
-    model=self.model,
-    messages=[...],
-    timeout=30,  # Add this
-)
+def chat(query):
+    response = openai.chat.completions.create(...)  # No timeout, no error handling
+    return response.choices[0].message.content
+```
+
+**CORRECT**: Use @safe_call decorator
+```python
+from utils.error_handling import safe_call
+
+@safe_call(timeout=15, fallback="抱歉，暂时无法回答")
+def chat(query):
+    response = openai.chat.completions.create(...)
+    return response.choices[0].message.content
 ```
 
 ## Architecture Decisions Log
+
+### 2025-11-09: Error Handling & Storage Systems
+
+**Problem**: No unified error handling, no persistent storage across sessions.
+
+**Solution**:
+- Added `utils/error_handling.py` with @safe_call decorator and UserFacingError
+- Added `utils/storage.py` for file-based persistence
+
+**Impact**:
+- Better UX: User-friendly error messages instead of technical stack traces
+- Timeout protection: All LLM calls now have 15-30s timeouts
+- Data persistence: User preferences survive browser refreshes
+- Code simplification: Consistent error handling pattern across codebase
+
+**Files Changed**:
+- NEW: `utils/error_handling.py` (166 lines)
+- NEW: `utils/storage.py` (147 lines)
+- NEW: `tests/test_error_handling.py`
+- NEW: `tests/test_storage.py`
 
 ### 2025-11-06: PaddleOCR → GPT-4o Vision
 
@@ -430,21 +496,35 @@ response = self.client.chat.completions.create(
 
 **Migration path**: All code uses `OCRService` facade, which internally delegates to `VisionOCRService`.
 
-### 2025-11-06: Codex Collaboration Model
+## Demo Materials (NEW - 2025-11-09)
 
-**Decision**: Claude Code provides architecture/design, Codex implements.
+**Location**: `screenshots/` and `demo/`
 
-**Rationale**:
-- Claude Code: Better at analysis, design, code review (Linus philosophy)
-- Codex: Better at bulk implementation, repetitive tasks
+### Screenshots for Competition Submission
 
-**Process**: See `.claude/PROJECT_RULES.md` for detailed workflow.
+**Chinese UI** (screenshots/):
+- `01_homepage_progress_zh.png`: Homepage with feature overview
+- `02_bill_upload_ocr_zh.png`: Bill upload and OCR results
+- `03_spending_insights_zh.png`: Spending analysis dashboard
+- `04_advisor_chat_zh.png`: AI financial advisor conversation
+- `05_investment_recs_zh.png`: Investment recommendations with XAI
+- `06_sidebar_zh.png`: Navigation sidebar
 
-**Key principles**:
-1. Linus's Three Questions: Real problem? Simpler way? What breaks?
-2. Claude Code generates detailed prompts for Codex
-3. Codex implements and reports back
-4. Claude Code reviews before user acceptance
+**English UI** (screenshots/):
+- `07_homepage_progress_en.png`: English homepage
+- `08_advisor_chat_en.png`: English chat interface
+
+**Usage**: Include in competition presentation and documentation.
+
+### Presentation Materials (demo/)
+
+**Files**:
+- `wefinance_presentation.pptx`: Competition presentation slides
+- `video_script.md`: Video demonstration script
+- `ppt_outline.md`: Presentation structure outline
+- `checklist.md`: Pre-submission checklist
+
+**Note**: PowerPoint generation scripts (`create_ppt_*.js`) use Node.js and officegen package.
 
 ## Debugging Tips
 
@@ -458,15 +538,17 @@ response = self.client.chat.completions.create(
 
 **Common errors**:
 - `ValueError: OPENAI_API_KEY environment variable not set`: Missing/invalid `.env` file
-- `JSONDecodeError`: Vision LLM returned malformed JSON (check logs for raw response)
+- `UserFacingError: API密钥配置错误`: Invalid API key or authentication failure
+- `UserFacingError: 操作超时`: Network timeout (check internet connection)
 - Empty transaction list: Image might not contain recognizable bill data
 
 ### Streamlit Session State Issues
 
-1. Check `utils/session.py` for state initialization: `init_session_state()` called in `app.py:207`
+1. Check `utils/session.py` for state initialization: `init_session_state()` called in `app.py`
 2. Use `st.session_state` debugger: Add `st.write(st.session_state)` temporarily
 3. Verify state keys match between pages: Use constants from `utils/session.py::DEFAULT_STATE`
 4. Check session persistence: Session state resets on browser refresh (expected behavior)
+5. Use `utils/storage.py` for data that should persist across sessions
 
 **Common issues**:
 - `KeyError: 'transactions'`: `init_session_state()` not called before access
@@ -477,26 +559,25 @@ response = self.client.chat.completions.create(
 
 1. Check API rate limits: `https://newapi.deepwisdom.ai/v1` dashboard
 2. Verify network connectivity to OpenAI-compatible endpoint
-3. Review fallback mechanisms in `chat_manager.py` and `recommendation_service.py`
+3. Review error logs: UserFacingError provides user-friendly context
 4. Check API key validity: Test with `curl` or `python test_vision_ocr.py`
 
 **Graceful degradation**:
-- Vision OCR: Returns empty list, allows manual input
-- Chat: Uses cached response if available
-- Recommendations: Returns empty list, shows error message
+- Vision OCR: Returns empty list via @safe_call(fallback=[])
+- Chat: Returns error message via @safe_call(fallback="抱歉...")
+- Recommendations: Returns empty list, shows UserFacingError message
 
-### Test Failures
+### Storage Issues
 
-1. Activate conda environment first: `conda activate wefinance`
-2. Check test isolation: Each test should be independent (no shared state)
-3. Mock external dependencies: LLM APIs, file I/O (use `@patch`)
-4. Run single test for debugging: `pytest tests/test_file.py::test_function -v`
-5. Check test data: Sample bills in `assets/sample_bills/`, fixtures in `tests/`
+1. Check storage file location: `~/.wefinance/data.json` or workspace fallback
+2. Verify write permissions: Storage auto-falls back to workspace if home is unwritable
+3. Check JSON format: Invalid JSON corrupts storage (handled gracefully)
+4. Clear corrupted storage: Delete `~/.wefinance/data.json` manually
 
-**Common test failures**:
-- `ModuleNotFoundError`: Conda environment not activated
-- `AssertionError`: Expected behavior changed (update test or fix code)
-- API call errors: Mock not working, real API being called (use `@patch`)
+**Common issues**:
+- `PermissionError`: Fallback to workspace storage (check logs)
+- Data not persisting: Check `save_to_storage()` return value (bool)
+- Corrupted JSON: `_load_all()` returns empty dict on parse failure
 
 ## Performance Considerations
 
@@ -505,22 +586,25 @@ response = self.client.chat.completions.create(
 - **Vision OCR**: ~2-5 seconds per image (acceptable for demo, limits to 10 images/upload)
 - **Chat**: ~1-3 seconds per message (cached queries return instantly)
 - **Recommendations**: ~3-7 seconds (cached by input hash via `@st.cache_data`)
+- **Timeouts**: All calls protected by @safe_call (30s vision, 15s chat/recommendations)
 
 **Optimization opportunities**:
-- Add `timeout=30` to all LLM calls (prevents hangs)
 - Implement progressive loading for long transaction lists
 - Pre-cache common queries on startup (e.g., "我这个月还能花多少？")
+- Batch multiple images in single Vision API call (if API supports)
 
 ### Caching Strategy
 
 1. **Query-level** (`chat_manager.py`): LRU cache for exact query matches (20 items)
 2. **Deterministic inputs** (`@st.cache_data`): Recommendation generation (transaction hash)
 3. **Session state**: All transaction data lives in session, not re-fetched
+4. **Persistent storage** (`storage.py`): User preferences, trusted merchants (file-based)
 
 **Cache invalidation**:
 - Chat cache: Cleared on locale switch (different language = different response)
 - `@st.cache_data`: Cleared automatically by Streamlit on input change
 - Session state: Persists until browser refresh or explicit reset
+- Storage: Persists until manual deletion or `clear_all_storage()`
 
 ### Streamlit Optimization
 
@@ -542,11 +626,12 @@ response = self.client.chat.completions.create(
 - Use `.env.example` as template for other developers
 - API keys loaded via `python-dotenv` in all services
 - Validate API key presence at service initialization (raises `ValueError` if missing)
+- Error handling masks API key details in user-facing messages
 
 ### Input Validation
 
 - **Transaction amounts**: Validated in Pydantic models (`models/entities.py`)
-- **File uploads**: Limited to PNG/JPG/PDF in Streamlit uploader (`accept_multiple_files=True`)
+- **File uploads**: Limited to PNG/JPG in Streamlit uploader (`accept_multiple_files=True`)
 - **User inputs**: Sanitized before LLM prompts (no injection attacks)
 - **Date format**: Validated via regex in Transaction model
 
@@ -554,16 +639,18 @@ response = self.client.chat.completions.create(
 
 - **Images**: Processed locally (base64 encoded for API call), not stored permanently
 - **Transactions**: Stored in session state only (cleared on browser refresh)
+- **Persistent data**: Stored in local JSON file (~/.wefinance/data.json), no cloud upload
 - **LLM provider**: `newapi.deepwisdom.ai` may log API calls - inform users in production
-- **No database**: Zero persistent storage = zero data breach risk for MVP
+- **No database**: Zero cloud storage = zero data breach risk for MVP
+- **Storage encryption**: Not implemented (local file is unencrypted JSON)
 
 ## Project Structure
 
 ```
 WeFinance/
-├── app.py                      # Streamlit entry point (303 lines)
+├── app.py                      # Streamlit entry point
 ├── environment.yml             # Conda environment (Python 3.10 + dependencies)
-├── requirements.txt            # pip extras (pytest-cov, etc.)
+├── requirements.txt            # pip dependencies (latest versions)
 ├── .env.example               # Environment variable template
 ├── .env                       # Environment variables (git-ignored)
 │
@@ -594,7 +681,9 @@ WeFinance/
 ├── utils/                     # Utilities
 │   ├── __init__.py
 │   ├── session.py            # Session state helpers (CRITICAL)
-│   └── i18n.py               # Internationalization engine
+│   ├── i18n.py               # Internationalization engine
+│   ├── error_handling.py     # Unified error handling (NEW)
+│   └── storage.py            # File-based persistence (NEW)
 │
 ├── locales/                   # Translation files
 │   ├── zh_CN.json            # Chinese translations
@@ -606,6 +695,8 @@ WeFinance/
 │   ├── test_ocr_service.py    # Vision OCR tests
 │   ├── test_chat_manager.py   # Chat manager tests
 │   ├── test_session_state.py  # Session state tests
+│   ├── test_error_handling.py # Error handling tests (NEW)
+│   ├── test_storage.py        # Storage tests (NEW)
 │   ├── test_structuring_service.py # Legacy tests
 │   └── test_i18n.py           # i18n tests
 │
@@ -614,6 +705,22 @@ WeFinance/
 │       ├── bill_dining.png
 │       ├── bill_mixed.png
 │       └── bill_shopping.png
+│
+├── screenshots/               # Demo materials for competition (NEW)
+│   ├── 01_homepage_progress_zh.png
+│   ├── 02_bill_upload_ocr_zh.png
+│   ├── 03_spending_insights_zh.png
+│   ├── 04_advisor_chat_zh.png
+│   ├── 05_investment_recs_zh.png
+│   ├── 06_sidebar_zh.png
+│   ├── 07_homepage_progress_en.png
+│   └── 08_advisor_chat_en.png
+│
+├── demo/                      # Presentation materials (NEW)
+│   ├── wefinance_presentation.pptx
+│   ├── video_script.md
+│   ├── ppt_outline.md
+│   └── checklist.md
 │
 ├── .claude/                   # Project documentation
 │   ├── PROJECT_RULES.md       # Claude Code ↔ Codex collaboration rules
@@ -636,4 +743,4 @@ WeFinance/
 - **System Architecture**: See `.claude/specs/wefinance-copilot/02-system-architecture.md`
 - **Product Requirements**: See `.claude/specs/wefinance-copilot/01-product-requirements.md`
 - **Sprint Planning**: See `.claude/specs/wefinance-copilot/03-sprint-plan.md`
-- **Testing Coverage**: Run `pytest --cov` and review `htmlcov/index.html`
+- **Demo Checklist**: See `demo/checklist.md`
