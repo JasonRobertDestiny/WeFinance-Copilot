@@ -91,8 +91,6 @@ New (Vision LLM): Image → GPT-4o Vision → Structured Data (ONE STEP)
 - **Implementation**: `services/vision_ocr_service.py` (161 lines)
 - **Facade**: `services/ocr_service.py` maintains backward compatibility
 
-**Note**: PaddlePaddle dependencies remain in `environment.yml` for legacy compatibility but are no longer used in production code.
-
 ### Data Flow Architecture
 
 ```
@@ -333,10 +331,6 @@ LLM_PROVIDER=openai
 
 # Optional: Storage path override
 WEFINANCE_STORAGE_FILE=/custom/path/to/data.json
-
-# Legacy PaddleOCR config (not used in Vision OCR pipeline)
-PADDLE_OCR_USE_ANGLE_CLASS="True"
-PADDLE_OCR_LANG="ch"
 ```
 
 **Template file**: `.env.example` (copy to `.env` and fill in your API key)
@@ -352,13 +346,11 @@ PADDLE_OCR_LANG="ch"
 
 **Why Conda**:
 - Isolates scientific computing dependencies (numpy, pandas, scipy, opencv)
-- PaddlePaddle (legacy) requires specific Python version
 - Consistent environment across development machines
 
 **Key Dependencies** (from requirements.txt):
 - **Web Framework**: streamlit>=1.37,<2.0
 - **LLM**: openai>=1.45.0, langchain>=0.2.10, langchain-openai>=0.1.7
-- **OCR**: paddleocr>=2.7.0.3 (legacy, not used)
 - **Data**: pandas>=2.0, numpy>=1.26, scikit-learn>=1.4
 - **Visualization**: plotly>=5.18
 - **Models**: pydantic>=2.0
@@ -484,7 +476,7 @@ def chat(query):
 **Solution**: Replaced with GPT-4o Vision, achieving 100% accuracy.
 
 **Impact**:
-- Removed PaddlePaddle dependency from production code (still in `environment.yml` for compatibility)
+- **Completely removed** PaddlePaddle/PaddleOCR dependencies (2025-11-11)
 - Simplified pipeline from 2-step to 1-step
 - Increased API cost (~$0.01/image) but acceptable for MVP/competition
 - Improved accuracy from 0% to 100% on synthetic images
@@ -492,7 +484,7 @@ def chat(query):
 **Files Changed**:
 - NEW: `services/vision_ocr_service.py` (161 lines)
 - MODIFIED: `services/ocr_service.py` (now delegates to VisionOCRService)
-- DEPRECATED: PaddleOCR usage (kept for backward compatibility, not used)
+- REMOVED: PaddleOCR dependencies from `environment.yml`, `requirements.txt`, `.env.example`
 
 **Migration path**: All code uses `OCRService` facade, which internally delegates to `VisionOCRService`.
 

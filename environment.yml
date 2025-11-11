@@ -56,10 +56,6 @@ dependencies:
     # Web框架
     - streamlit==1.28.0
 
-    # OCR引擎（无conda版本）
-    - paddleocr==2.7.0
-    - paddlepaddle==3.0.0
-
     # LLM和AI框架（conda版本更新慢）
     - openai>=1.6.1
     - langchain==0.1.0

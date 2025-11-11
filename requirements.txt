@@ -1,5 +1,4 @@
 streamlit>=1.37,<2.0
-paddleocr>=2.7.0.3
 openai>=1.45.0
 langchain>=0.2.10
 langchain-openai>=0.1.7
