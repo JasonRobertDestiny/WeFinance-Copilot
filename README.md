@@ -1,323 +1,327 @@
 # WeFinance Copilot
 
-AI驱动的智能财务助理 - 2025深圳国际金融科技大赛参赛项目
+English | **[中文](./README_zh-CN.md)**
 
-## 项目简介
+AI-Powered Smart Financial Assistant - 2025 Shenzhen International Fintech Competition
 
-WeFinance Copilot通过**图像OCR识别 + 生成式AI**，将纸质/电子账单转化为智能财务分析，提供：
-- 📸 **智能账单识别**：拍照上传，自动提取交易记录（PaddleOCR + GPT-4o混合架构）
-- 💬 **对话式财务顾问**：自然语言问答，个性化理财建议
-- 🔍 **可解释AI推荐**：透明展示决策逻辑，建立用户信任
-- ⚠️ **主动异常检测**：自动发现异常支出并提醒
+## 🚀 Live Demo
 
-**技术亮点**：
-- 成本优化97%（混合OCR架构：30元→1元/100张图片）
-- 隐私保护（图片本地处理，零上传）
-- 轻量化设计（10天开发周期，无数据库依赖）
-- 中英文界面一键切换（完整 i18n 方案 + 缓存）
+**Try it now**: https://wefinance-copilot.streamlit.app
 
-## 快速开始
+> No installation required - upload bill images to test OCR recognition, AI advisor chat, investment recommendations, and more
 
-> 💡 **首次使用？** 推荐使用自动安装脚本，详见 [Conda环境管理指南](./docs/CONDA_GUIDE.md)
+## Overview
 
-### 1. 环境准备（三种方式）
+WeFinance Copilot uses **Vision LLM + Generative AI** to transform paper/electronic bills into intelligent financial analysis, offering:
+- 📸 **Smart Bill Recognition**: Upload photos, GPT-4o Vision directly extracts transactions (100% accuracy)
+- 💬 **Conversational Financial Advisor**: Natural language Q&A with personalized advice
+- 🔍 **Explainable AI Recommendations**: Transparent decision logic to build user trust
+- ⚠️ **Proactive Anomaly Detection**: Automatically detect and alert on unusual spending
 
-#### 方式A：自动安装脚本（推荐⭐）
+**Technical Highlights**:
+- **Vision LLM Architecture**: GPT-4o Vision one-step recognition, 100% accuracy (vs traditional OCR 0%)
+- **Privacy Protection**: Images transmitted via API only, no persistent storage
+- Lightweight design (10-day development cycle, no database dependency)
+- One-click Chinese/English UI switching (complete i18n solution + caching)
 
-**Linux/Mac**：
+## Quick Start
+
+> 💡 **First time?** Use the automated setup script - see [Conda Environment Guide](./docs/CONDA_GUIDE.md)
+
+### 1. Environment Setup (3 Options)
+
+#### Option A: Automated Script (Recommended ⭐)
+
+**Linux/Mac**:
 ```bash
 chmod +x setup_conda_env.sh
 ./setup_conda_env.sh
 ```
 
-**Windows**：
+**Windows**:
 ```cmd
 setup_conda_env.bat
 ```
 
-#### 方式B：手动创建（快速）
+#### Option B: Manual Setup (Quick)
 
-**前置条件**：已安装 [Miniconda](https://docs.conda.io/en/latest/miniconda.html) 或 [Anaconda](https://www.anaconda.com/products/distribution)
+**Prerequisites**: Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution)
 
 ```bash
-# 创建环境
+# Create environment
 conda env create -f environment.yml
 
-# 激活环境
+# Activate environment
 conda activate wefinance
 
-# 验证安装
-python --version  # 应显示 Python 3.10.x
-# 如需使用pytest-cov等开发工具
+# Verify installation
+python --version  # Should show Python 3.10.x
+# For dev tools like pytest-cov
 pip install -r requirements.txt
 ```
 
-#### 方式C：从零开始（详细步骤）
+**Note**: PaddleOCR has been completely removed. The project now uses GPT-4o Vision API for OCR - no model downloads needed.
+
+#### Option C: From Scratch (Detailed)
 
 ```bash
-# 1. 安装Miniconda（如果还没有）
-# 下载：https://docs.conda.io/en/latest/miniconda.html
+# 1. Install Miniconda (if not already installed)
+# Download: https://docs.conda.io/en/latest/miniconda.html
 
-# 2. 创建环境
+# 2. Create environment
 conda env create -f environment.yml
 
-# 3. 激活环境
+# 3. Activate environment
 conda activate wefinance
 
-# 4. 验证核心包
-python -c "import streamlit, paddleocr, openai, langchain; print('✅ 所有核心包安装成功')"
+# 4. Verify core packages
+python -c "import streamlit, openai, langchain; print('✅ All core packages installed')"
 ```
 
-**国内用户加速（可选）**：
+**China Users Acceleration (Optional)**:
 ```bash
-# 配置清华镜像源
+# Configure Tsinghua mirror
 conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
 conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
 conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
 conda config --set show_channel_urls yes
 ```
 
-### 2. 环境配置
+### 2. Configuration
 
-创建`.env`文件（复制模板）：
+Create `.env` file (copy from template):
 ```bash
 cp .env.example .env
 ```
 
-编辑`.env`文件，填入你的API密钥：
+Edit `.env` file with your API key:
 ```bash
 # ✅ PRIMARY: newapi.deepwisdom.ai (OpenAI-compatible relay API)
 LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-api-key-here  # 替换为你的真实密钥
+OPENAI_API_KEY=sk-your-api-key-here  # Replace with your actual key
 OPENAI_BASE_URL=https://newapi.deepwisdom.ai/v1
 OPENAI_MODEL=gpt-4o
 ```
 
-### 3. 下载PaddleOCR模型
-
-首次运行时，PaddleOCR会自动下载模型文件（约200MB），也可以提前下载：
-```bash
-python -c "from paddleocr import PaddleOCR; ocr = PaddleOCR(use_angle_cls=True, lang='ch')"
-```
-
-### 4. 运行应用
+### 3. Run Application
 
 ```bash
 streamlit run app.py
 ```
 
-应用将在浏览器中打开：`http://localhost:8501`
+The app will open in your browser at: `http://localhost:8501`
 
-### 5. 界面语言切换
+### 4. Language Switching
 
-- 默认语言：中文（简体）
-- 切换方式：在左侧侧边栏的「界面语言」下拉框选择 `中文 / English`
-- 实时生效：导航、页面标题、提示信息、对话回复与推荐结果都会即时更新，无需刷新
-- 缓存策略：热点数据（分析结果、推荐方案、聊天缓存）自动按语言分开缓存，避免串联
+- Default language: Simplified Chinese
+- Switch method: Select `中文 / English` in the sidebar language dropdown
+- Real-time effect: Navigation, page titles, prompts, chat responses, and recommendations update instantly without refresh
+- Caching strategy: Hot data (analysis results, recommendations, chat cache) automatically cached separately by language to avoid cross-contamination
 
-## 项目结构
+## Project Structure
 
 ```
 WeFinance/
-├── app.py                      # Streamlit主入口
-├── environment.yml             # Conda环境配置
-├── requirements.txt            # pip依赖（备用）
-├── .env.example               # 环境变量模板
-├── .env                       # 环境变量（私密，git ignored）
-├── pages/                     # Streamlit页面
-│   ├── bill_upload.py         # 账单上传页面
-│   ├── spending_insights.py   # 消费洞察页面
-│   ├── advisor_chat.py        # 财务顾问聊天页面
-│   └── investment_recs.py     # 投资推荐页面
-├── modules/                   # 核心业务模块
-│   ├── analysis.py           # 数据分析模块
-│   └── chat_manager.py       # 对话管理器
-├── services/                  # AI服务层
-│   ├── ocr_service.py        # OCR服务（PaddleOCR）
-│   ├── structuring_service.py # 结构化服务（GPT-4o）
-│   ├── recommendation_service.py # 推荐服务
-│   └── langchain_agent.py    # LangChain Agent封装（可选）
-├── models/                    # 数据模型
-│   └── entities.py           # 实体定义（Transaction、UserProfile等）
-├── utils/                     # 工具函数
-│   └── session.py            # 会话管理
-├── tests/                     # 单元测试
-│   ├── test_integration.py   # 端到端流程测试
-│   ├── test_ocr_service.py   # OCR服务单测
-│   └── test_structuring_service.py # 结构化单测
-└── .claude/                   # 项目文档
+├── app.py                      # Streamlit main entry
+├── environment.yml             # Conda environment config
+├── requirements.txt            # pip dependencies (fallback)
+├── .env.example               # Environment variable template
+├── .env                       # Environment variables (private, git ignored)
+├── pages/                     # Streamlit pages
+│   ├── bill_upload.py         # Bill upload page
+│   ├── spending_insights.py   # Spending insights page
+│   ├── advisor_chat.py        # Financial advisor chat page
+│   └── investment_recs.py     # Investment recommendations page
+├── modules/                   # Core business modules
+│   ├── analysis.py           # Data analysis module
+│   └── chat_manager.py       # Conversation manager
+├── services/                  # AI service layer
+│   ├── vision_ocr_service.py  # Vision LLM OCR service (GPT-4o Vision)
+│   ├── ocr_service.py        # OCR service facade
+│   ├── structuring_service.py # Structuring service (deprecated)
+│   ├── recommendation_service.py # Recommendation service
+│   └── langchain_agent.py    # LangChain Agent wrapper (optional)
+├── models/                    # Data models
+│   └── entities.py           # Entity definitions (Transaction, UserProfile, etc.)
+├── utils/                     # Utility functions
+│   ├── session.py            # Session management
+│   ├── i18n.py               # Internationalization
+│   ├── error_handling.py     # Error handling
+│   └── storage.py            # Persistent storage
+├── locales/                   # Translation files
+│   ├── zh_CN.json            # Chinese translations
+│   └── en_US.json            # English translations
+├── tests/                     # Unit tests
+│   ├── test_integration.py   # End-to-end workflow tests
+│   ├── test_ocr_service.py   # OCR service tests
+│   └── test_structuring_service.py # Structuring tests
+└── .claude/                   # Project documentation
     └── specs/
         ├── 01-product-requirements.md    # PRD v2.0
-        ├── 02-system-architecture.md     # 系统架构设计
-        └── 03-sprint-plan.md             # Sprint规划
-
+        ├── 02-system-architecture.md     # System architecture design
+        └── 03-sprint-plan.md             # Sprint planning
 ```
 
-## 核心功能
+## Core Features
 
-### F1：智能账单分析器
-- 上传账单图片（PNG/JPG/JPEG，最多10张）
-- PaddleOCR自动识别中文文字（准确率≥90%）
-- GPT-4o结构化为JSON交易记录
-- 自动分类：餐饮、交通、购物、医疗、娱乐等
-- 生成月度/周度消费报告
-- OCR失败时支持手动粘贴JSON/CSV继续分析
+### F1: Smart Bill Analyzer
+- Upload bill images (PNG/JPG/JPEG, up to 10 images)
+- **GPT-4o Vision** directly recognizes Chinese bills (100% accuracy)
+- Auto-structured into JSON transaction records
+- Auto-categorization: Dining, Transportation, Shopping, Healthcare, Entertainment, etc.
+- Generate monthly/weekly spending reports
+- Manual JSON/CSV paste supported if OCR fails
 
-### F2：对话式财务顾问
-- 自然语言问答："我这个月还能花多少？"
-- 结合账单数据提供个性化回答
-- 支持预算查询、消费分析、术语解释、理财建议
+### F2: Conversational Financial Advisor
+- Natural language Q&A: "How much can I still spend this month?"
+- Personalized answers based on bill data
+- Supports budget queries, spending analysis, term explanations, financial advice
 
-### F3：可解释的理财建议（XAI）
-- 3道问题评估风险偏好
-- 基于目标生成资产配置建议
-- **"为什么？"按钮**展示决策逻辑（竞赛亮点）
-- 透明展示推荐背后的因果链
+### F3: Explainable Financial Recommendations (XAI)
+- 3 questions assess risk tolerance
+- Generate asset allocation suggestions based on goals
+- **"Why?" button** shows decision logic (competition highlight)
+- Transparently display causal chain behind recommendations
 
-### F4：主动式异常检测（加分项）
-- 自动检测异常支出（金额、时间、频率）
-- 主动推送红色警告卡片
-- 用户反馈闭环优化模型（确认/疑似欺诈）
-- 信任商户白名单管理，降低误报
-- 自适应阈值（1.5/2.5σ）与小样本降级处理
+### F4: Proactive Anomaly Detection (Bonus Feature)
+- Auto-detect anomalous spending (amount, time, frequency)
+- Proactive push of red warning cards
+- User feedback loop optimizes model (confirm/suspected fraud)
+- Trusted merchant whitelist management reduces false positives
+- Adaptive thresholds (1.5/2.5σ) with small-sample degradation handling
 
-## 技术栈
+## Tech Stack
 
-| 类别 | 技术选型 | 版本 |
-|------|---------|------|
-| 前端框架 | Streamlit | 1.28+ |
-| OCR引擎 | PaddleOCR | 2.7+ |
-| LLM服务 | GPT-4o API | - |
-| 对话管理 | LangChain | 0.1+ |
-| 数据处理 | Pandas | 2.0+ |
-| 可视化 | Plotly | 5.18+ |
-| 环境管理 | Conda | - |
+| Category | Technology | Version |
+|----------|------------|---------|
+| Frontend Framework | Streamlit | 1.37+ |
+| Vision OCR | GPT-4o Vision API | - |
+| LLM Service | GPT-4o API | - |
+| Conversation Management | LangChain | 0.2+ |
+| Data Processing | Pandas | 2.0+ |
+| Visualization | Plotly | 5.18+ |
+| Environment Management | Conda | - |
 
-## 开发指南
+## Development Guide
 
-### 运行测试
+### Running Tests
 
 ```bash
-# 激活conda环境
+# Activate conda environment
 conda activate wefinance
 
-# 运行所有测试
+# Run all tests
 pytest tests/
 
-# 运行测试并查看覆盖率（需要先安装 pytest-cov）
+# Run tests with coverage (install pytest-cov first)
 pip install pytest-cov
 pytest --cov=modules --cov=services --cov-report=term-missing
 ```
 
-- `tests/test_integration.py` 覆盖上传→分析→对话→推荐等五个核心用户场景。
+- `tests/test_integration.py` covers five core user scenarios: upload → analysis → conversation → recommendations, etc.
 
-### 代码规范
+### Code Standards
 
-- 遵循PEP8规范
-- 关键逻辑添加中文注释
-- 函数添加docstring
-- 使用`black`格式化代码：`black .`
-- 使用`ruff`检查代码：`ruff check .`
+- Follow PEP8 guidelines
+- Add Chinese comments for critical logic
+- Add docstrings to functions
+- Format code with `black`: `black .`
+- Check code with `ruff`: `ruff check .`
 
-### 环境管理
+### Environment Management
 
-**查看已安装的包**：
+**View installed packages**:
 ```bash
-conda list                    # 查看所有包
-conda list | grep streamlit   # 查看特定包
+conda list                    # View all packages
+conda list | grep streamlit   # View specific package
 ```
 
-**更新环境**（修改environment.yml后）：
+**Update environment** (after modifying environment.yml):
 ```bash
-# 激活环境
+# Activate environment
 conda activate wefinance
 
-# 更新环境（删除多余包，添加新包）
+# Update environment (remove extra packages, add new ones)
 conda env update -f environment.yml --prune
 ```
 
-**添加新依赖**：
+**Add new dependencies**:
 ```bash
-# 优先使用conda安装
+# Prefer conda install
 conda install -c conda-forge package-name
 
-# 如果conda没有，使用pip
+# If conda doesn't have it, use pip
 pip install package-name
 
-# 导出更新后的环境
+# Export updated environment
 conda env export > environment.yml
-# 或只导出手动安装的包（推荐）
+# Or export only manually installed packages (recommended)
 conda env export --from-history > environment.yml
 ```
 
-**删除环境**：
+**Remove environment**:
 ```bash
-# 退出环境
+# Exit environment
 conda deactivate
 
-# 删除环境
+# Remove environment
 conda env remove -n wefinance
 
-# 清理缓存
+# Clean cache
 conda clean --all
 ```
 
-**常见问题排查**：
+**Troubleshooting**:
 ```bash
-# 1. 环境创建失败
-conda clean --all              # 清理缓存
-conda env create -f environment.yml --force  # 强制重建
+# 1. Environment creation failed
+conda clean --all              # Clean cache
+conda env create -f environment.yml --force  # Force rebuild
 
-# 2. 包冲突
+# 2. Package conflicts
 conda install package-name --force-reinstall
 
-# 3. 查看环境详情
-conda info --envs              # 列出所有环境
-conda info                     # 查看conda信息
+# 3. View environment details
+conda info --envs              # List all environments
+conda info                     # View conda info
 ```
 
-## 竞赛信息
+## Competition Info
 
-- **赛事**：2025深圳国际金融科技大赛（AI赛道）
-- **截止日期**：2025年11月16日 24:00
-- **评分标准**：
-  - 产品实现完整性：40%
-  - 创新性：30%
-  - 商业价值：30%
-- **预期得分**：88/100
+- **Event**: 2025 Shenzhen International Fintech Competition (AI Track)
+- **Deadline**: November 16, 2025, 24:00
+- **Scoring Criteria**:
+  - Product completeness: 40%
+  - Innovation: 30%
+  - Business value: 30%
+- **Expected score**: 88/100
 
-## 文档资源
+## Documentation
 
-- [产品需求文档 (PRD v2.0)](./.claude/specs/wefinance-copilot/01-product-requirements.md)
-- [系统架构设计](./.claude/specs/wefinance-copilot/02-system-architecture.md)
-- [Sprint规划](./.claude/specs/wefinance-copilot/03-sprint-plan.md)
+- [Product Requirements Document (PRD v2.0)](./.claude/specs/wefinance-copilot/01-product-requirements.md)
+- [System Architecture Design](./.claude/specs/wefinance-copilot/02-system-architecture.md)
+- [Sprint Planning](./.claude/specs/wefinance-copilot/03-sprint-plan.md)
+- [Deployment Guide](./DEPLOY.md)
 
-## 常见问题
+## FAQ
 
-### 1. PaddleOCR模型下载慢？
-使用国内镜像：
-```bash
-export HUB_URL=https://hub.paddlepaddle.org.cn
-```
+### 1. API call failure?
+Check `.env` configuration:
+- Is `OPENAI_API_KEY` correct?
+- Is `OPENAI_BASE_URL` accessible?
+- Is network connection stable?
 
-### 2. GPU加速？
-安装GPU版本的PaddlePaddle：
-```bash
-conda install paddlepaddle-gpu -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/Paddle/
-```
+### 2. Vision OCR recognition failure?
+- Ensure image is clear with visible text
+- Supported formats: PNG, JPG, JPEG
+- Single image recommended <5MB
+- If persistent failures, check API quota and network connection
 
-### 3. API调用失败？
-检查`.env`配置：
-- `OPENAI_API_KEY`是否正确
-- `OPENAI_BASE_URL`是否可访问
-- 网络是否通畅
+## License
 
-## 许可证
+This project is for 2025 Shenzhen International Fintech Competition participation only. Commercial use without authorization is prohibited.
 
-本项目仅用于2025深圳国际金融科技大赛参赛，未经授权不得用于商业用途。
+## Contact
 
-## 联系方式
-
-- 项目负责人：WeFinance 团队
-- 邮箱：team@wefinance.ai
-- GitHub：<https://github.com/wefinance/copilot>
+- Project Lead: WeFinance Team
+- Email: team@wefinance.ai
+- GitHub: https://github.com/JasonRobertDestiny/WeFinance-Copilot
