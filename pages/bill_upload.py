@@ -19,7 +19,10 @@ from services.ocr_service import MAX_FILE_SIZE_BYTES, OCRService
 from utils.error_handling import UserFacingError
 from utils.session import get_i18n, get_transactions, set_analysis_summary, set_transactions
 from utils.transactions import generate_transaction_id
-from utils.ui_components import render_financial_health_card
+from utils.ui_components import (
+    render_financial_health_card,
+    responsive_width_kwargs,
+)
 
 STRUCTURED_FILE_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_FILE_SIZE_MB = MAX_FILE_SIZE_BYTES // (1024 * 1024)
@@ -319,7 +322,7 @@ def _render_manual_entry(i18n) -> None:
 
         table_df = st.data_editor(
             pd.DataFrame(table_entries),
-            use_container_width=True,
+            **responsive_width_kwargs(st.data_editor),
             hide_index=True,
             num_rows="dynamic",
             column_config={
@@ -413,7 +416,7 @@ def _render_analysis(
     st.subheader(i18n.t("bill_upload.summary_header"))
     if table_rows:
         df = pd.DataFrame(table_rows)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, **responsive_width_kwargs(st.dataframe))
     else:
         st.info(i18n.t("common.no_data"))
 
@@ -673,7 +676,7 @@ def render() -> None:
             if st.button(
                 i18n.t('bill_upload.fallback_option_1_title'),
                 key="fallback_reupload",
-                use_container_width=True
+                **responsive_width_kwargs(st.button)
             ):
                 # Clear state and force re-render uploader
                 st.session_state["show_manual_entry"] = False
@@ -687,7 +690,7 @@ def render() -> None:
                 i18n.t('bill_upload.fallback_option_2_title'),
                 key="fallback_manual",
                 type="primary",
-                use_container_width=True
+                **responsive_width_kwargs(st.button)
             ):
                 st.session_state["show_manual_entry"] = True
                 st.rerun()

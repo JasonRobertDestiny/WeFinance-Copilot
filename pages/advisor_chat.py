@@ -16,7 +16,7 @@ from utils.session import (
     get_transactions,
     set_chat_history,
 )
-from utils.ui_components import render_financial_health_card
+from utils.ui_components import render_financial_health_card, responsive_width_kwargs
 
 
 def _init_session_defaults() -> None:
@@ -75,7 +75,11 @@ def render() -> None:
     cols = st.columns(2)
     for idx, question in enumerate(sample_questions):
         with cols[idx % 2]:
-            if st.button(question, key=f"sample_q_{idx}", use_container_width=True):
+            if st.button(
+                question,
+                key=f"sample_q_{idx}",
+                **responsive_width_kwargs(st.button),
+            ):
                 # 点击后自动发送该问题
                 st.session_state["auto_query"] = question
                 st.rerun()

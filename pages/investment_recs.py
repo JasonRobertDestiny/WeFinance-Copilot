@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import pandas as pd
 import plotly.express as px
@@ -12,7 +12,46 @@ from models.entities import Recommendation, Transaction
 from services.recommendation_service import RecommendationService
 from utils import session as session_utils
 from utils.session import get_i18n, get_monthly_budget, set_product_recommendations
-from utils.ui_components import render_financial_health_card
+from utils.ui_components import (
+    render_financial_health_card,
+    responsive_width_kwargs,
+)
+
+# 高级问卷选项数量常量，便于统一维护
+QUESTION_OPTION_COUNT = 3
+
+
+def _normalize_question_options(raw_options: Iterable[Any]) -> List[Tuple[str, int]]:
+    """将不同格式的选项统一为(label, score)结构，避免LLM输出差异导致崩溃"""
+
+    normalized: List[Tuple[str, int]] = []
+    for option in raw_options or []:
+        label: str | None = None
+        score_value: Any = None
+
+        if isinstance(option, dict):
+            label = option.get("label") or option.get("text") or option.get("option")
+            score_value = option.get("score") or option.get("value")
+        elif isinstance(option, (list, tuple)) and len(option) >= 2:
+            label = str(option[0])
+            score_value = option[1]
+        else:
+            continue
+
+        if not label:
+            continue
+
+        try:
+            score_int = int(score_value)
+        except (TypeError, ValueError):
+            continue
+
+        normalized.append((str(label), score_int))
+
+    if len(normalized) < QUESTION_OPTION_COUNT:
+        return []
+    return normalized[:QUESTION_OPTION_COUNT]
+
 
 # 简化版风险问题（LLM生成失败时的后备方案）
 FALLBACK_QUESTIONS: List[Dict[str, object]] = [
@@ -78,24 +117,36 @@ def _collect_risk_answers(
 
     answers: Dict[str, int] = {}
     for idx, question in enumerate(questions):
-        key = f"risk_advanced_{question['id']}_{idx}"  # 确保key唯一
-        prompt = question.get("prompt", f"问题 {idx+1}")  # 提供默认值
-        options: List[Tuple[str, int]] = question["options"]  # type: ignore[assignment]
+        question_id = question.get("id") or f"advanced_{idx}"
+        key = f"risk_advanced_{question_id}_{idx}"  # 确保key唯一
+        prompt = (
+            question.get("prompt")
+            or question.get("question")
+            or question.get("title")
+            or f"问题 {idx+1}"
+        )
 
-        # 使用问题文本作为label
-        option_labels = [opt_label for opt_label, score in options]
-        default_index = 0
+        normalized_options = _normalize_question_options(question.get("options", []))
+        if not normalized_options:
+            st.warning(
+                f"⚠️ {prompt} 选项加载异常，已为您跳过。"
+                if i18n.locale == "zh_CN"
+                else f"⚠️ Options missing for: {prompt}"
+            )
+            continue
+
+        option_labels = [opt_label for opt_label, _ in normalized_options]
         selected = st.radio(
-            prompt,  # 明确使用prompt作为label
+            prompt,
             options=option_labels,
-            index=default_index,
+            index=0,
             key=key,
             horizontal=False,
         )
 
-        for (opt_label, score), display_label in zip(options, option_labels):
-            if display_label == selected:
-                answers[question["id"]] = score
+        for opt_label, score in normalized_options:
+            if opt_label == selected:
+                answers[str(question_id)] = score
                 break
 
     # 显示LLM生成的目标引导文案
@@ -261,7 +312,7 @@ def _render_results(results: Dict[str, object]) -> None:
         )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig.update_layout(yaxis_title=i18n.t("recommendation.label_ratio"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, **responsive_width_kwargs(st.plotly_chart))
 
     st.subheader(i18n.t("recommendation.recommendation_list_title"))
     for rec in recommendations:
@@ -452,7 +503,7 @@ def render() -> None:
                 file_name=f"financial_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
                 mime="text/markdown",
                 key="download_report",
-                use_container_width=True,
+                **responsive_width_kwargs(st.download_button),
             )
 
         # 渲染Markdown报告

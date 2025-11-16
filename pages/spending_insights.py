@@ -16,7 +16,10 @@ from modules.analysis import (
     generate_insights,
 )
 from utils import session as session_utils
-from utils.ui_components import render_financial_health_card
+from utils.ui_components import (
+    render_financial_health_card,
+    responsive_width_kwargs,
+)
 
 
 @st.cache_data(show_spinner=False)
@@ -191,7 +194,9 @@ def render() -> None:
                 hole=0.4,
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(
+                fig_pie, **responsive_width_kwargs(st.plotly_chart)
+            )
 
             bar_df = pie_df.sort_values("amount", ascending=False)
             fig_bar = px.bar(
@@ -207,7 +212,9 @@ def render() -> None:
             )
             fig_bar.update_traces(texttemplate="¥%{text:.2f}", textposition="outside")
             fig_bar.update_layout(yaxis_title=i18n.t("spending.label_amount"))
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(
+                fig_bar, **responsive_width_kwargs(st.plotly_chart)
+            )
 
     with st.expander(i18n.t("spending.trend_title"), expanded=False):
         if not trend_daily.empty:
@@ -222,7 +229,9 @@ def render() -> None:
                     "amount": i18n.t("spending.label_amount"),
                 },
             )
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(
+                fig_line, **responsive_width_kwargs(st.plotly_chart)
+            )
         else:
             st.info(i18n.t("spending.trend_daily_empty"))
 
@@ -238,7 +247,9 @@ def render() -> None:
                     "amount": i18n.t("spending.label_amount"),
                 },
             )
-            st.plotly_chart(fig_month, use_container_width=True)
+            st.plotly_chart(
+                fig_month, **responsive_width_kwargs(st.plotly_chart)
+            )
 
     with st.expander(i18n.t("spending.insight_title"), expanded=True):
         if insights:

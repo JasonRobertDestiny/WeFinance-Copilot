@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import os
 import re
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -49,6 +50,50 @@ class RecommendationService:
                 raise RuntimeError("OPENAI_API_KEY not configured")
             self._client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         return self._client
+
+    @staticmethod
+    def _strip_code_fences(content: str) -> str:
+        """去除LLM输出中常见的markdown代码块包装"""
+
+        text = (content or "").strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        return text.strip()
+
+    @classmethod
+    def _parse_llm_json(cls, content: str) -> Any:
+        """容错解析LLM返回的JSON，兼容额外说明或前后缀"""
+
+        cleaned = cls._strip_code_fences(content)
+        if not cleaned:
+            raise json.JSONDecodeError("empty response", "", 0)
+
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as err:
+            last_error = err
+
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if match:
+            snippet = match.group(0)
+            try:
+                return json.loads(snippet)
+            except json.JSONDecodeError as snippet_err:
+                last_error = snippet_err
+
+        try:
+            parsed = ast.literal_eval(cleaned)
+        except (ValueError, SyntaxError):
+            parsed = None
+
+        if isinstance(parsed, (dict, list)):
+            return parsed
+
+        raise last_error
 
     @safe_call(timeout=30, fallback=None, error_message="LLM风险评估失败")
     def _conduct_risk_assessment_llm(
@@ -177,17 +222,10 @@ Requirements:
             if not content:
                 return None
 
-            # 清理markdown代码块
-            content = content.strip()
-            if content.startswith("```json"):
-                content = content[7:]
-            elif content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-
-            data = json.loads(content)
+            data = self._parse_llm_json(content)
+            if not isinstance(data, dict):
+                logger.warning("LLM风险评估响应不是字典")
+                return None
 
             risk_profile = data.get("risk_profile", "")
             allocation = data.get("allocation", {})
@@ -480,18 +518,10 @@ Requirements:
                 logger.warning("LLM返回空内容")
                 return None
 
-            # 解析JSON响应
-            # 清理可能的markdown代码块
-            content_cleaned = content.strip()
-            if content_cleaned.startswith("```json"):
-                content_cleaned = content_cleaned[7:]
-            if content_cleaned.startswith("```"):
-                content_cleaned = content_cleaned[3:]
-            if content_cleaned.endswith("```"):
-                content_cleaned = content_cleaned[:-3]
-            content_cleaned = content_cleaned.strip()
-
-            data = json.loads(content_cleaned)
+            data = self._parse_llm_json(content)
+            if not isinstance(data, dict):
+                logger.warning("LLM推荐响应不是字典")
+                return None
             recs_data = data.get("recommendations", [])
 
             if not recs_data:
@@ -802,17 +832,10 @@ Requirements:
                 logger.warning("LLM返回空内容")
                 return None
 
-            # 清理markdown代码块
-            content = content.strip()
-            if content.startswith("```json"):
-                content = content[7:]
-            elif content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-
-            data = json.loads(content)
+            data = self._parse_llm_json(content)
+            if not isinstance(data, dict):
+                logger.warning("LLM问题生成响应不是字典")
+                return None
             questions = data.get("questions", [])
 
             if not questions or len(questions) < 3:

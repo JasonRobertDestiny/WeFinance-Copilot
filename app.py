@@ -20,6 +20,7 @@ from utils.session import (
     switch_locale,
 )
 from utils.storage import clear_all_storage, load_from_storage
+from utils.ui_components import responsive_width_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,7 @@ def _render_home() -> None:
             i18n.t("app.btn_upload_bills"),
             key="home_upload_btn",
             type="primary",
-            use_container_width=True
+            **responsive_width_kwargs(st.button)
         ):
             st.session_state["selected_page"] = "bill_upload"
             st.rerun()
@@ -218,7 +219,7 @@ def _render_home() -> None:
         if st.button(
             i18n.t("app.btn_view_analysis"),
             key="home_analysis_btn",
-            use_container_width=True
+            **responsive_width_kwargs(st.button)
         ):
             st.session_state["selected_page"] = "spending_insights"
             st.rerun()
@@ -231,7 +232,7 @@ def _render_home() -> None:
         if st.button(
             i18n.t("app.btn_start_chat"),
             key="home_chat_btn",
-            use_container_width=True
+            **responsive_width_kwargs(st.button)
         ):
             st.session_state["selected_page"] = "advisor_chat"
             st.rerun()
@@ -244,7 +245,7 @@ def _render_home() -> None:
     comparison_df = get_comparison_table(current_locale)
     st.dataframe(
         comparison_df,
-        use_container_width=True,
+        **responsive_width_kwargs(st.dataframe),
         hide_index=True
     )
 
@@ -256,7 +257,7 @@ def _render_home() -> None:
             i18n.t("app.btn_get_recommendations"),
             key="home_invest_btn",
             type="secondary",
-            use_container_width=True
+            **responsive_width_kwargs(st.button)
         ):
             st.session_state["selected_page"] = "investment_recs"
             st.rerun()
@@ -363,7 +364,7 @@ def main() -> None:
         if next_page_key and st.button(
             next_step,
             key="smart_nav_button",
-            use_container_width=True,
+            **responsive_width_kwargs(st.button),
             type="primary",
         ):
             st.session_state["selected_page"] = next_page_key
@@ -418,7 +419,7 @@ def main() -> None:
                 "📥" if current_locale == "en_US" else "📥",
                 help="导出数据" if current_locale == "zh_CN" else "Export",
                 key="export_data_btn",
-                use_container_width=True,
+                **responsive_width_kwargs(st.button),
             ):
                 export_data = {
                     "transactions": load_from_storage("transactions", []),
@@ -437,7 +438,7 @@ def main() -> None:
                     file_name=f"wefinance_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json",
                     key="download_json_btn",
-                    use_container_width=True,
+                    **responsive_width_kwargs(st.download_button),
                 )
 
         with col2:
@@ -445,7 +446,7 @@ def main() -> None:
                 "🗑️",
                 help="清除数据" if current_locale == "zh_CN" else "Clear",
                 key="clear_data_btn",
-                use_container_width=True,
+                **responsive_width_kwargs(st.button),
             ):
                 if st.session_state.get("confirm_clear", False):
                     clear_all_storage()

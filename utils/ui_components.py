@@ -2,12 +2,42 @@
 
 from __future__ import annotations
 
-from typing import List
+import inspect
+from functools import lru_cache
+from typing import Any, Callable, Dict, List
 
 import streamlit as st
 
 from models.entities import Transaction
 from utils.session import get_i18n, get_monthly_budget
+
+
+def responsive_width_kwargs(component: Callable[..., Any], stretch: bool = True) -> Dict[str, object]:
+    """统一兼容Streamlit旧use_container_width与新width参数"""
+
+    param = _resolve_width_param(component)
+    if not param:
+        return {}
+
+    if param == "width":
+        return {"width": "stretch" if stretch else "content"}
+    return {"use_container_width": stretch}
+
+
+@lru_cache(maxsize=32)
+def _resolve_width_param(component: Callable[..., Any]) -> str | None:
+    """缓存组件可用的宽度参数，避免多次反射"""
+
+    try:
+        signature = inspect.signature(component)
+    except (TypeError, ValueError):
+        return None
+
+    if "width" in signature.parameters:
+        return "width"
+    if "use_container_width" in signature.parameters:
+        return "use_container_width"
+    return None
 
 
 def render_financial_health_card(transactions: List[Transaction]) -> None:
