@@ -484,8 +484,12 @@ def render() -> None:
             except Exception as exc:
                 st.error(f"❌ 生成失败：{exc}" if locale == "zh_CN" else f"❌ Generation failed: {exc}")
 
-    # 显示已生成的详细报告
-    if "detailed_financial_report" in st.session_state and st.session_state["detailed_financial_report"]:
+    # 显示已生成的详细报告（仅当尚未有资产配置结果时避免重复展示）
+    if (
+        "detailed_financial_report" in st.session_state
+        and st.session_state["detailed_financial_report"]
+        and not st.session_state.get("recommendation_explanation")
+    ):
         st.markdown("---")
         st.markdown("## 📄 详细理财咨询报告" if locale == "zh_CN" else "## 📄 Detailed Financial Report")
 
@@ -508,6 +512,12 @@ def render() -> None:
 
         # 渲染Markdown报告
         st.markdown(report_content)
+
+    # 已存在的资产配置结果（来自高级模式）
+    persisted_results = st.session_state.get("recommendation_explanation")
+    if persisted_results:
+        st.markdown("---")
+        _render_results(persisted_results)
 
     # === 高级模式：保留完整问卷流程（折叠） ===
     with st.expander("🔧 高级模式：完整风险评估问卷（可选）", expanded=False):
@@ -581,10 +591,10 @@ def render() -> None:
             else:
                 st.session_state["risk_profile_key"] = "balanced"
 
-            _render_results(results)
             recommendation_payload = [dict(item) for item in results["recommendations"]]
             set_product_recommendations(recommendation_payload)
             st.session_state["recommendation_explanation"] = results
+            st.rerun()
 
 
 if __name__ == "__main__":  # pragma: no cover - streamlit entry point
