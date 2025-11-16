@@ -79,6 +79,36 @@ st.set_page_config(
 )
 
 
+@st.cache_data
+def get_comparison_table(locale: str):
+    """Cache comparison table data to avoid recreation on each render."""
+    import pandas as pd
+    from utils.session import get_i18n
+
+    i18n = get_i18n()
+    comparison_data = {
+        i18n.t("app.comparison_feature"): [
+            i18n.t("app.comparison_ocr_rate"),
+            i18n.t("app.comparison_processing"),
+            i18n.t("app.comparison_multilingual"),
+            i18n.t("app.comparison_ai_advisor"),
+        ],
+        i18n.t("app.comparison_wefinance"): [
+            i18n.t("app.comparison_ocr_wefinance"),
+            i18n.t("app.comparison_processing_wefinance"),
+            i18n.t("app.comparison_multilingual_wefinance"),
+            i18n.t("app.comparison_ai_wefinance"),
+        ],
+        i18n.t("app.comparison_traditional"): [
+            i18n.t("app.comparison_ocr_traditional"),
+            i18n.t("app.comparison_processing_traditional"),
+            i18n.t("app.comparison_multilingual_traditional"),
+            i18n.t("app.comparison_ai_traditional"),
+        ],
+    }
+    return pd.DataFrame(comparison_data)
+
+
 def _render_home() -> None:
     """Render the landing page with value proposition and card-based navigation."""
     i18n = get_i18n()
@@ -206,32 +236,12 @@ def _render_home() -> None:
             st.session_state["selected_page"] = "advisor_chat"
             st.rerun()
 
-    # Comparison table
+    # Comparison table (cached)
     st.markdown("---")
     st.subheader(i18n.t("app.comparison_title"))
 
-    import pandas as pd
-    comparison_data = {
-        i18n.t("app.comparison_feature"): [
-            i18n.t("app.comparison_ocr_rate"),
-            i18n.t("app.comparison_processing"),
-            i18n.t("app.comparison_multilingual"),
-            i18n.t("app.comparison_ai_advisor"),
-        ],
-        i18n.t("app.comparison_wefinance"): [
-            i18n.t("app.comparison_ocr_wefinance"),
-            i18n.t("app.comparison_processing_wefinance"),
-            i18n.t("app.comparison_multilingual_wefinance"),
-            i18n.t("app.comparison_ai_wefinance"),
-        ],
-        i18n.t("app.comparison_traditional"): [
-            i18n.t("app.comparison_ocr_traditional"),
-            i18n.t("app.comparison_processing_traditional"),
-            i18n.t("app.comparison_multilingual_traditional"),
-            i18n.t("app.comparison_ai_traditional"),
-        ],
-    }
-    comparison_df = pd.DataFrame(comparison_data)
+    current_locale = st.session_state.get("locale", "zh_CN")
+    comparison_df = get_comparison_table(current_locale)
     st.dataframe(
         comparison_df,
         use_container_width=True,
@@ -266,7 +276,7 @@ PAGES: dict[str, Callable[[], None]] = {
 
 
 def _refresh_anomaly_state() -> None:
-    """Recompute anomaly detection results to keep homepage alerts up-to-date."""
+    """Recompute anomaly detection results only when transaction data changes."""
     i18n = get_i18n()
     transactions = session_utils.get_transactions()
     if not transactions:
@@ -276,11 +286,20 @@ def _refresh_anomaly_state() -> None:
         )
         return
 
+    # Performance optimization: Only recompute if data changed
+    current_hash = hash(tuple((t.id, t.amount, t.date) for t in transactions))
+    last_hash = st.session_state.get("anomaly_last_hash")
+
+    if current_hash == last_hash:
+        # Data unchanged, skip expensive computation
+        return
+
     report = compute_anomaly_report(
         transactions,
         whitelist_merchants=session_utils.get_trusted_merchants(),
     )
     session_utils.sync_anomaly_state(report)
+    st.session_state["anomaly_last_hash"] = current_hash
 
 
 def main() -> None:
@@ -449,7 +468,9 @@ def main() -> None:
         return
 
     try:
-        render()
+        # Add loading indicator for better UX
+        with st.spinner("🔄 Loading..." if st.session_state.get("locale") == "en_US" else "🔄 加载中..."):
+            render()
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("页面渲染失败：%s", exc)
         st.error(f"😥 {i18n.t('errors.render_failed')}")
