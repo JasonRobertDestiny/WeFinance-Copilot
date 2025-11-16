@@ -84,9 +84,10 @@ st.set_page_config(
 def get_comparison_table(locale: str):
     """Cache comparison table data to avoid recreation on each render."""
     import pandas as pd
-    from utils.session import get_i18n
+    from utils.i18n import I18n
 
-    i18n = get_i18n()
+    # 直接创建临时I18n实例用于翻译（函数已被缓存，仅执行一次）
+    i18n = I18n(locale)
     comparison_data = {
         i18n.t("app.comparison_feature"): [
             i18n.t("app.comparison_ocr_rate"),

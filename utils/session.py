@@ -214,11 +214,19 @@ def sync_anomaly_state(report: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def get_i18n() -> I18n:
-    """Return the current I18n instance from session."""
+    """Return the current I18n instance from session (optimized for performance)."""
+    # 快速路径：直接检查i18n是否存在，避免每次调用init_session_state()
+    i18n = st.session_state.get("i18n")
+    if isinstance(i18n, I18n):
+        return i18n
+
+    # 慢路径：仅在不存在时才初始化
     init_session_state()
     i18n = st.session_state.get("i18n")
     if isinstance(i18n, I18n):
         return i18n
+
+    # 创建新实例
     i18n = I18n(st.session_state.get("locale", "zh_CN"))
     st.session_state["i18n"] = i18n
     return i18n
