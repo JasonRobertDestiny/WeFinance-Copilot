@@ -1,4 +1,4 @@
-# WeFinance Copilot
+# WeFinance
 
 **[English](./README.md)** | 中文
 
@@ -14,7 +14,7 @@
 
 ## 项目概述
 
-WeFinance Copilot是一个生产就绪的个人财务助理，利用前沿的Vision LLM技术（GPT-4o Vision）自动化账单处理，提供对话式财务建议，并交付可解释的投资推荐。
+WeFinance是一个生产就绪的个人财务助理，利用前沿的Vision LLM技术（GPT-4o Vision）自动化账单处理，提供对话式财务建议，并交付可解释的投资推荐。
 
 **核心创新**：使用GPT-4o Vision API直接从账单图片提取结构化数据，在合成图片上实现100%识别准确率，而传统OCR方法准确率为0%。
 
@@ -238,8 +238,8 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 ```bash
 # 克隆仓库
-git clone https://github.com/JasonRobertDestiny/WeFinance-Copilot.git
-cd WeFinance-Copilot
+git clone https://github.com/JasonRobertDestiny/WeFinance.git
+cd WeFinance
 
 # 创建conda环境（推荐）
 conda env create -f environment.yml
@@ -414,9 +414,17 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 ## 社区与支持
 
-- **问题反馈**：[GitHub Issues](https://github.com/JasonRobertDestiny/WeFinance-Copilot/issues)
-- **讨论交流**：[GitHub Discussions](https://github.com/JasonRobertDestiny/WeFinance-Copilot/discussions)
+- **问题反馈**：[GitHub Issues](https://github.com/JasonRobertDestiny/WeFinance/issues)
+- **讨论交流**：[GitHub Discussions](https://github.com/JasonRobertDestiny/WeFinance/discussions)
 - **邮箱**：johnrobertdestiny@gmail.com
+
+### 加入微信交流群
+
+扫码加入微信群，获取技术支持、参与讨论、了解最新动态：
+
+<div align="center">
+  <img src="./vx_chat.png" alt="微信群二维码" width="300"/>
+</div>
 
 ---
 
@@ -437,4 +445,4 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 ## Star历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=JasonRobertDestiny/WeFinance-Copilot&type=Date)](https://star-history.com/#JasonRobertDestiny/WeFinance-Copilot&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=JasonRobertDestiny/WeFinance&type=Date)](https://star-history.com/#JasonRobertDestiny/WeFinance&Date)

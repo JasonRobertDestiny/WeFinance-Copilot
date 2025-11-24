@@ -1,4 +1,4 @@
-# WeFinance Copilot
+# WeFinance
 
 English | **[中文](./README_zh-CN.md)**
 
@@ -14,7 +14,7 @@ English | **[中文](./README_zh-CN.md)**
 
 ## Overview
 
-WeFinance Copilot is a production-ready personal finance assistant that leverages state-of-the-art Vision LLM technology (GPT-4o Vision) to automate bill processing, provide conversational financial advice, and deliver explainable investment recommendations.
+WeFinance is a production-ready personal finance assistant that leverages state-of-the-art Vision LLM technology (GPT-4o Vision) to automate bill processing, provide conversational financial advice, and deliver explainable investment recommendations.
 
 **Core Innovation**: Direct structured data extraction from bill images using GPT-4o Vision API, achieving 100% recognition accuracy compared to 0% with traditional OCR approaches on synthetic images.
 
@@ -238,8 +238,8 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 ```bash
 # Clone repository
-git clone https://github.com/JasonRobertDestiny/WeFinance-Copilot.git
-cd WeFinance-Copilot
+git clone https://github.com/JasonRobertDestiny/WeFinance.git
+cd WeFinance
 
 # Create conda environment (recommended)
 conda env create -f environment.yml
@@ -414,9 +414,17 @@ High-impact contributions:
 
 ## Community & Support
 
-- **Issues**: [GitHub Issues](https://github.com/JasonRobertDestiny/WeFinance-Copilot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/JasonRobertDestiny/WeFinance-Copilot/discussions)
+- **Issues**: [GitHub Issues](https://github.com/JasonRobertDestiny/WeFinance/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/JasonRobertDestiny/WeFinance/discussions)
 - **Email**: johnrobertdestiny@gmail.com
+
+### Join Our WeChat Community
+
+Scan the QR code to join our WeChat group for discussions, support, and updates:
+
+<div align="center">
+  <img src="./vx_chat.png" alt="WeChat Group QR Code" width="300"/>
+</div>
 
 ---
 
@@ -437,4 +445,4 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=JasonRobertDestiny/WeFinance-Copilot&type=Date)](https://star-history.com/#JasonRobertDestiny/WeFinance-Copilot&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=JasonRobertDestiny/WeFinance&type=Date)](https://star-history.com/#JasonRobertDestiny/WeFinance&Date)
