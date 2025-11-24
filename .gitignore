@@ -72,13 +72,7 @@ temp/
 tmp/
 .wefinance/
 
-# Demo materials (local only, not for competition submission)
-demo/
-
 # Internal documents (keep local, don't commit to GitHub)
-PPT大纲.md
-PPT大纲_答辩版.md
-PPT大纲_最终版.md
-竞赛方案说明文档.md
+demo/
 report.md
 PERFORMANCE_OPTIMIZATION.md

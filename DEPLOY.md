@@ -1,7 +1,7 @@
 # WeFinance 部署指南
 
 ## 1. 方案概览
-- **竞赛演示 / 快速分享**：优先使用 Streamlit Community Cloud，零运维、一键从 GitHub 发布。
+- **快速演示 / 分享**：优先使用 Streamlit Community Cloud，零运维、一键从 GitHub 发布。
 - **准生产 / 私有环境**：将同一代码包装为 Docker，部署到 ACK/TKE/EKS 等托管 K8s 或公司 GPU 服务器。
 - **混合形态**：保留 Cloud 作为 Demo，同步一个自托管实例供真实账单流量，二者共用 `main` 分支代码。
 
@@ -33,4 +33,4 @@
 2. **内网 GPU 节点**：在公司机房配置 8 核 CPU + 32GB RAM + T4/RTX 3060，安装 Conda 环境 `conda env create -f environment.yml`，通过 Nginx 反向代理给内网用户，保障账单数据不出域。
 3. **混合模式**：Streamlit Cloud 负责 Demo，私有云实例承载真实流量。通过 GitHub Actions 同步镜像或包，确保两端在 `main` 成功 CI 后再发版。
 
-通过以上流程，既能快速满足竞赛演示需求，也为后续商业化部署预留了清晰路径。
+通过以上流程，既能快速部署演示环境，也为后续商业化部署预留了清晰路径。

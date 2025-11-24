@@ -2,50 +2,47 @@
 
 English | **[中文](./README_zh-CN.md)**
 
-> **AI-Powered Personal Finance Assistant** - Transforming bill images into intelligent financial insights with Vision LLM technology
+> **AI-Powered Personal Finance Assistant** - Vision LLM technology for transforming bill images into actionable financial insights
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live-success)](https://wefinance-copilot.streamlit.app)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-Competition_Only-orange)](./LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-**Try Now**: [https://wefinance-copilot.streamlit.app](https://wefinance-copilot.streamlit.app)
-
-**Demo Video**: [Watch on Bilibili](https://www.bilibili.com/video/BV1dGCSBzEde/) 📹
-
-**One-sentence pitch**: Upload bill photos → GPT-4o Vision extracts transactions in 3 seconds → Get personalized financial advice with explainable AI recommendations.
+**Live Demo**: [https://wefinance-copilot.streamlit.app](https://wefinance-copilot.streamlit.app)
 
 ---
 
-## 🎯 Problem Statement & Pain Points
+## Overview
 
-### Current Challenges in Personal Finance Management
+WeFinance Copilot is a production-ready personal finance assistant that leverages state-of-the-art Vision LLM technology (GPT-4o Vision) to automate bill processing, provide conversational financial advice, and deliver explainable investment recommendations.
 
-| Pain Point | Traditional Solutions | Limitations | WeFinance Solution |
-|------------|----------------------|-------------|-------------------|
-| **Manual Data Entry** | Manually type transactions from paper bills | Time-consuming (5-10 min/bill), error-prone | **GPT-4o Vision OCR**: 3s/bill, 100% accuracy |
-| **Fragmented Information** | Separate apps for tracking, analysis, advice | Context loss, poor UX | **Unified Platform**: All-in-one intelligent assistant |
-| **Black-box Recommendations** | Robo-advisors give results without reasoning | Low trust, poor adoption | **Explainable AI (XAI)**: Transparent decision logic |
-| **Reactive Anomaly Detection** | Users discover fraud after bank statements | Financial loss, delayed response | **Proactive Alerts**: Real-time anomaly detection |
+**Core Innovation**: Direct structured data extraction from bill images using GPT-4o Vision API, achieving 100% recognition accuracy compared to 0% with traditional OCR approaches on synthetic images.
 
-### Why Existing Solutions Fall Short
+### Key Capabilities
 
-**Traditional OCR (PaddleOCR, Tesseract)**:
-- ❌ 0% accuracy on synthetic/low-quality images
-- ❌ Requires pre-processing (rotation, denoising)
-- ❌ Cannot understand context (merchant name vs. amount)
-
-**Generic LLM Apps (ChatGPT wrappers)**:
-- ❌ No specialized financial knowledge
-- ❌ Cannot process images directly
-- ❌ Lack structured data extraction
-
-**Our Breakthrough**: **Vision LLM Pipeline** - GPT-4o Vision directly extracts structured transaction data from images in one step, eliminating traditional OCR preprocessing while achieving 100% recognition accuracy.
+- **Smart Bill Recognition**: Upload bill photos → 3-second extraction → Structured transaction data (100% accuracy)
+- **Conversational Financial Advisor**: Natural language Q&A with transaction context and budget awareness
+- **Explainable AI Recommendations**: Transparent investment advice with visible decision reasoning chains
+- **Proactive Anomaly Detection**: Real-time unusual spending detection with adaptive thresholds
 
 ---
 
-## 🏗️ System Architecture
+## The Problem
 
-### High-Level Architecture
+Personal finance management suffers from several critical pain points:
+
+| Challenge | Traditional Approach | Limitation |
+|-----------|---------------------|------------|
+| **Manual Data Entry** | Type transactions from paper bills | Time-consuming (5-10 min/bill), error-prone |
+| **Fragmented Tools** | Separate apps for tracking, analysis, advice | Context loss, poor UX |
+| **Black-box AI** | Robo-advisors without explanations | Low trust, poor adoption |
+| **Reactive Fraud Detection** | Users discover fraud after occurrence | Financial loss, delayed response |
+
+---
+
+## Technical Architecture
+
+### System Overview
 
 ```mermaid
 graph TB
@@ -69,105 +66,59 @@ graph TB
     style Frontend fill:#90EE90
 ```
 
-### Core Innovation: Vision LLM Pipeline
+### Technology Stack
 
-**Traditional OCR Flow** (2 steps, 0% accuracy):
-```
-Image → PaddleOCR (text extraction) → GPT-4o (structuring) → JSON
-       ❌ Fails on synthetic images     ✅ Works well
-```
-
-**Our Vision LLM Flow** (1 step, 100% accuracy):
-```
-Image → GPT-4o Vision API → Structured JSON
-       ✅ One-step extraction, zero preprocessing
-```
-
-**Why This Matters**:
-- **100% Recognition Rate**: Successfully extracts all transactions from synthetic and real bill images
-- **Zero Dependencies**: No PaddleOCR model downloads (200MB → 0MB)
-- **3-Second Processing**: Base64 encoding + API call + JSON parsing
-- **Context Understanding**: Recognizes merchant names, categories, amounts without pre-training
-
-### Data Flow Architecture
-
-```
-User Upload (pages/bill_upload.py)
-    ↓
-VisionOCRService.extract_transactions_from_image()
-    ├─ Base64 encode image
-    ├─ GPT-4o Vision API call (temp=0.0, structured prompt)
-    ├─ JSON parsing → Transaction objects
-    └─ Return List[Transaction]
-    ↓
-Session State Management (utils/session.py)
-    ├─ st.session_state["transactions"] (core data)
-    └─ Shared across all pages
-    ↓
-Multiple Consumers:
-    ├─ Advisor Chat (modules/chat_manager.py) - Natural language Q&A
-    ├─ Investment Recommendations (services/recommendation_service.py) - XAI
-    ├─ Spending Insights (modules/analysis.py) - Category breakdown
-    └─ Anomaly Detection (modules/analysis.py) - Fraud alerts
-```
-
-### Technology Stack & Design Decisions
-
-| Layer | Technology | Version | Why This Choice? |
-|-------|-----------|---------|------------------|
-| **Frontend** | Streamlit | 1.37+ | Rapid prototyping (10-day sprint), no frontend expertise needed |
-| **Vision OCR** | GPT-4o Vision | - | 100% accuracy, zero dependencies, one-step extraction |
-| **LLM Service** | GPT-4o API | - | Multi-modal understanding, cost-effective ($0.01/image) |
-| **Conversation** | LangChain | 0.2+ | Memory management, context assembly, LRU cache |
-| **Data Processing** | Pandas | 2.0+ | Time series analysis, category aggregation |
+| Layer | Technology | Version | Rationale |
+|-------|-----------|---------|-----------|
+| **Frontend** | Streamlit | 1.37+ | Rapid prototyping, Python-native |
+| **Vision OCR** | GPT-4o Vision | - | 100% accuracy, zero local dependencies |
+| **LLM Service** | GPT-4o API | - | Multi-modal understanding, cost-effective |
+| **Conversation** | LangChain | 0.2+ | Memory management, context assembly |
+| **Data Processing** | Pandas | 2.0+ | Time series analysis, aggregation |
 | **Visualization** | Plotly | 5.18+ | Interactive charts, responsive design |
-| **Environment** | Conda | - | Reproducible setup, scientific computing dependencies |
+| **Environment** | Conda | - | Reproducible scientific computing setup |
 
 ---
 
-## 🧠 Algorithm & Model Selection
+## Algorithm Deep Dive
 
-### 1. OCR Technology Evolution
+### 1. Vision OCR Migration Journey
 
-#### Migration Journey: PaddleOCR → GPT-4o Vision
-
-**Phase 1: PaddleOCR Attempt** (Nov 6, 2025)
-- **Goal**: Local OCR for privacy protection
-- **Implementation**: PaddleOCR 2.7+ with Chinese model
+**Phase 1: PaddleOCR Failure**
+- Attempted local OCR with PaddleOCR 2.7+ Chinese model
 - **Result**: 0% accuracy on synthetic bill images
-- **Issue**: Cannot recognize programmatically generated text (PIL/Matplotlib)
+- **Root Cause**: Cannot recognize programmatically generated text
 
-**Phase 2: Vision LLM Breakthrough** (Nov 6, 2025)
-- **Decision**: Replace PaddleOCR with GPT-4o Vision API
-- **Implementation**: Direct image → structured JSON extraction
+**Phase 2: Vision LLM Breakthrough**
+- Replaced PaddleOCR with GPT-4o Vision API
 - **Result**: 100% accuracy on all test images (synthetic + real)
-- **Impact**: Completely removed 200MB model dependencies
+- **Impact**: Removed 200MB model dependencies, simplified architecture
 
-#### Comparative Analysis
+#### Comparative Performance
 
 | Metric | PaddleOCR | GPT-4o Vision | Improvement |
 |--------|-----------|---------------|-------------|
-| **Accuracy (Synthetic Images)** | 0% | 100% | +100% |
+| **Accuracy (Synthetic)** | 0% | 100% | +100% |
 | **Accuracy (Real Photos)** | ~60% | 100% | +67% |
-| **Processing Time** | 2-3s (OCR) + 1s (LLM) | 3s (total) | 0% |
+| **Processing Time** | 2-3s (OCR) + 1s (LLM) | 3s (total) | Simplified |
 | **Dependencies** | 200MB models | 0MB | -100% |
-| **Preprocessing Required** | Yes (rotation, denoising) | No | Eliminated |
-| **Cost per Image** | Free (local) | $0.01 | Acceptable |
+| **Preprocessing** | Required | None | Eliminated |
+| **Cost per Image** | Free (local) | $0.01 | Acceptable tradeoff |
 
 **Decision Rationale**:
-- **Accuracy >> Cost**: For MVP/competition, 100% recognition justifies $0.01/image cost
-- **Privacy Tradeoff**: Images transmitted via API (HTTPS encrypted), not stored permanently
-- **Development Speed**: Simplified architecture accelerates iteration
+- Accuracy justifies $0.01/image cost (100% vs 0% on synthetic images)
+- Images transmitted via HTTPS, not stored permanently (privacy tradeoff)
+- Simplified architecture accelerates development velocity
 
 ---
 
-### 2. Multi-line Recognition Enhancement (Nov 15, 2025)
+### 2. Multi-line Recognition Enhancement
 
-**Problem**: LLM initially only recognized the first transaction in multi-row bills, merging all transactions into one record.
+**Problem**: LLM initially only recognized the first transaction in multi-row bills.
 
-**Root Cause**: LLM wasn't understanding "process each line" instruction - data structure issue, not token limits.
+**Root Cause Analysis**: Data structure issue, not token limits. LLM wasn't understanding "process each line" instruction.
 
-**Solution**: Applied Linus philosophy - "Fix data structure, not logic"
+**Solution**: Applied "Fix data structure, not logic" principle
 
 **Prompt Engineering Innovation**:
 ```python
@@ -182,51 +133,24 @@ Multiple Consumers:
 """
 ```
 
-**Forced Two-Step Thinking**:
-1. Count first (forces LLM to scan entire image)
-2. Extract second (ensures completeness)
-
 **Impact**:
 - Multi-row recognition: 30% → 100% success rate
-- Real-world payment app screenshots: 7-12 transactions correctly identified
-- Zero changes to parsing logic (backward compatible)
-
-**Validation**:
-```bash
-python scripts/test_vision_ocr.py --show-details --dump-json
-# 10/10 images recognized perfectly
-# Results logged to artifacts/ocr_test_results.log
-```
+- Real payment app screenshots: 7-12 transactions correctly identified
+- Zero logic changes (backward compatible)
 
 ---
 
-### 3. LLM Application Scenarios
+### 3. Explainable AI (XAI) Architecture
 
-| Use Case | Model | Temperature | Timeout | Caching Strategy |
-|----------|-------|-------------|---------|------------------|
-| **Vision OCR** | GPT-4o Vision | 0.0 (deterministic) | 30s | None (always fresh) |
-| **Chat Advisor** | GPT-4o (text) | 0.7 (conversational) | 15s | LRU cache (20 queries) |
-| **Recommendations** | GPT-4o (text) | 0.3 (consistent) | 30s | @st.cache_data (tx hash) |
+**Design Philosophy**: XAI as core architectural component, not add-on feature.
 
-**Prompt Engineering Principles**:
-1. **Vision OCR**: Exact JSON format, valid categories, date format enforcement
-2. **Chat**: RAG-enhanced context (transaction summary + budget status)
-3. **Recommendations**: Chain-of-thought reasoning for XAI transparency
-
----
-
-### 4. Explainable AI (XAI) Architecture
-
-**Design Philosophy**: XAI is not an add-on, but a core architectural component.
-
-**Rule Engine + LLM Hybrid**:
+**Hybrid Rule Engine + LLM Approach**:
 ```python
 # Step 1: Rule Engine generates decision log
 decision_log = {
     "risk_profile": "Conservative",
     "rejected_products": [
-        {"name": "Stock Fund A", "reason": "Risk level (5) exceeds limit (2)"},
-        {"name": "Crypto ETF", "reason": "Volatility (20%) exceeds limit (5%)"}
+        {"name": "Stock Fund A", "reason": "Risk level (5) exceeds limit (2)"}
     ],
     "selected_products": [
         {"name": "Bond Fund B", "weight": 70%, "reason": "Highest return in low-risk category"}
@@ -235,56 +159,46 @@ decision_log = {
 
 # Step 2: LLM converts decision log to natural language
 explanation = llm.generate(f"""
-Explain to user why we recommended this portfolio:
+Explain why this portfolio was recommended:
 {json.dumps(decision_log, indent=2)}
 
 Requirements:
 1. Use "Because... Therefore..." causal chains
-2. Reference specific data (return rate, risk level, volatility)
-3. Avoid financial jargon, use plain language
+2. Reference specific data (return rate, risk level)
+3. Avoid jargon, use plain language
 """)
 ```
 
-**Why Hybrid Approach?**
+**Why Hybrid?**
 - **Transparency**: Rule engine decisions are auditable
 - **Naturalness**: LLM generates user-friendly explanations
 - **Trust**: Users see exact decision criteria
 
 ---
 
-## 📊 Experimental Results & Performance Evaluation
+## Performance Benchmarks
 
-### 1. OCR Recognition Accuracy
+### OCR Recognition Accuracy
 
 **Test Dataset**:
 - 10 bill images (3 synthetic + 7 real photos)
 - 4-12 transactions per image
-- Mix of dining, shopping, transport categories
+- Mixed categories (dining, shopping, transport)
 
 **Results**:
 
 | Image Type | Transactions | Expected | Recognized | Accuracy |
 |-----------|--------------|----------|------------|----------|
-| **Synthetic Bills** (3 images) | | | | |
-| bill_dining.png | 4 | 4 | 4 | 100% |
-| bill_mixed.png | 4 | 4 | 4 | 100% |
-| bill_shopping.png | 3 | 3 | 3 | 100% |
-| **Real Photos** (7 images) | | | | |
-| real/1.jpg | 12 | 12 | 12 | 100% |
-| real/2.png | 8 | 8 | 8 | 100% |
-| real/3.png | 7 | 7 | 7 | 100% |
-| real/4.png | 4 | 4 | 4 | 100% |
-| real/5.png | 9 | 9 | 9 | 100% |
-| real/6.png | 11 | 11 | 11 | 100% |
-| real/7.png | 10 | 10 | 10 | 100% |
+| **Synthetic Bills** (3) | 11 | 11 | 11 | 100% |
+| **Real Photos** (7) | 61 | 61 | 61 | 100% |
 | **Overall** | **72** | **72** | **72** | **100%** |
 
 **Key Insights**:
-- **Zero failures** across diverse image quality (synthetic rendering, phone photos, screenshots)
-- **Multi-line recognition** works flawlessly (up to 12 transactions per image)
-- **Category classification** 100% correct (餐饮、交通、购物、医疗、娱乐、教育、其他)
+- Zero failures across diverse image quality
+- Multi-line recognition flawless (up to 12 transactions/image)
+- Category classification 100% accurate
 
-**Validation Command**:
+**Validation**:
 ```bash
 python scripts/test_vision_ocr.py --show-details --dump-json
 # Logs: artifacts/ocr_test_results.log
@@ -293,188 +207,234 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 ---
 
-### 2. Performance Metrics
+### System Performance
 
-**System Performance** (Measured on production deployment):
+**Production Metrics** (Streamlit Community Cloud):
 
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
-| **Vision OCR Response Time** | ≤5s | 2-3s | ✅ 40% faster |
-| **Chat Response Time** | ≤3s | 1-2s | ✅ 33% faster |
-| **Recommendation Generation** | ≤7s | 3-5s | ✅ 29% faster |
-| **Page Load Time** | ≤3s | 2s | ✅ 33% faster |
+| **Vision OCR Response** | ≤5s | 2-3s | ✅ 40% faster |
+| **Chat Response** | ≤3s | 1-2s | ✅ 33% faster |
+| **Recommendation Gen** | ≤7s | 3-5s | ✅ 29% faster |
+| **Page Load** | ≤3s | 2s | ✅ 33% faster |
 | **Memory Footprint** | ≤500MB | 380MB | ✅ 24% lower |
 
-**Scalability Test**:
-- **Batch Upload**: 10 images processed concurrently in 25s (2.5s/image average)
-- **Concurrent Users**: Handles 50 simultaneous sessions on Streamlit Community Cloud
-- **Memory Leak**: Zero memory growth over 100 consecutive operations
+**Scalability**:
+- Batch upload: 10 images in 25s (2.5s/image average)
+- Concurrent users: 50 simultaneous sessions supported
+- Memory leak: Zero growth over 100 consecutive operations
 
 ---
 
-### 3. User Experience Improvements
+## Getting Started
 
-**Before vs. After Comparison** (Based on competition demo feedback):
+### Prerequisites
 
-| Aspect | Traditional Approach | WeFinance Copilot | Improvement |
-|--------|---------------------|-------------------|-------------|
-| **Data Entry Time** | 5-10 min/bill (manual typing) | 3s/bill (upload photo) | **99% faster** |
-| **Error Rate** | ~15% (typos, wrong categories) | 0% (LLM extraction) | **100% reduction** |
-| **User Engagement** | Low (tedious data entry) | High (conversational AI) | **+80%** |
-| **Trust in Recommendations** | Low (black-box) | High (XAI explanations) | **+70%** |
-| **Anomaly Detection Speed** | Days (after bank statement) | Real-time (immediate alerts) | **Instant** |
+- Python 3.10+
+- Conda (recommended) or pip
+- OpenAI API key (or compatible endpoint)
 
-**Measured User Satisfaction** (Competition demo survey, N=20):
-- **Ease of Use**: 4.8/5.0
-- **OCR Accuracy**: 5.0/5.0 (perfect recognition)
-- **XAI Clarity**: 4.7/5.0
-- **Overall Satisfaction**: 4.9/5.0
-
----
-
-### 4. Cost-Benefit Analysis
-
-**GPT-4o Vision API Cost Model**:
-- **Per Image**: $0.01 (base64 encoding + API call)
-- **Per User/Month** (avg 30 bills): $0.30/month
-- **Total Cost** (MVP, 100 users): $30/month
-
-**ROI Calculation**:
-- **Time Saved**: 5 min/bill × 30 bills/month = 150 min/month/user
-- **Hourly Value**: $20/hour (average user)
-- **Value Created**: (150 min / 60) × $20 = $50/month/user
-- **ROI**: ($50 - $0.30) / $0.30 = **16,567%**
-
-**Competitive Advantage**:
-- **vs. Traditional OCR**: +100% accuracy, -200MB dependencies
-- **vs. Manual Entry**: 99% time reduction, 100% error elimination
-- **vs. Generic ChatGPT**: Specialized financial knowledge, image processing
-
----
-
-## 🚀 Core Features
-
-### F1: Smart Bill Recognition
-- Upload bill images (PNG/JPG/JPEG, up to 10 images)
-- **GPT-4o Vision** directly extracts transactions (100% accuracy)
-- Auto-categorization: Dining, Transportation, Shopping, Healthcare, Entertainment, etc.
-- Manual JSON/CSV input supported as fallback
-
-### F2: Conversational Financial Advisor
-- Natural language Q&A: "How much can I still spend this month?"
-- Personalized advice based on actual transaction data
-- LangChain-powered context memory (20-query LRU cache)
-
-### F3: Explainable Investment Recommendations (XAI)
-- 3-question risk assessment
-- Asset allocation based on goals
-- **"Why?" button** reveals decision logic (competition highlight)
-- Transparent causal chain display
-
-### F4: Proactive Anomaly Detection
-- Auto-detect unusual spending (amount, time, frequency)
-- Red warning cards pushed to user
-- User feedback loop (confirm/suspected fraud)
-- Trusted merchant whitelist to reduce false positives
-- Adaptive thresholds (1.5/2.5σ) with small-sample degradation
-
----
-
-## ⚡ Quick Start
-
-> 💡 **First time?** Use the automated setup script - see [Conda Environment Guide](./docs/CONDA_GUIDE.md)
-
-### 1. Environment Setup
+### Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/JasonRobertDestiny/WeFinance-Copilot.git
 cd WeFinance-Copilot
 
-# Create conda environment
+# Create conda environment (recommended)
 conda env create -f environment.yml
 conda activate wefinance
 
-# Install development tools (optional)
+# Or use pip
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+### Configuration
 
 ```bash
 # Copy environment template
 cp .env.example .env
 
-# Edit .env file with your API key
+# Edit .env with your API credentials
 # Required: OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 ```
 
-### 3. Run Application
+Example `.env`:
+```bash
+OPENAI_API_KEY=sk-your-api-key-here
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
+LLM_PROVIDER=openai
+TZ=Asia/Shanghai
+```
+
+### Run Application
 
 ```bash
 streamlit run app.py
 ```
 
-The app will open at: `http://localhost:8501`
+Application opens at: `http://localhost:8501`
 
-### 4. Language Switching
+### Language Switching
 
 - Default: Simplified Chinese
-- Switch: Select `中文 / English` in sidebar dropdown
-- Real-time effect: Navigation, titles, prompts, chat responses update instantly
+- Switch: Select `中文 / English` in sidebar
+- Real-time: Navigation, titles, prompts update instantly
 
 ---
 
-## 📚 Technical Documentation
+## Development
+
+### Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Specific test file
+pytest tests/test_ocr_service.py -v
+
+# Coverage report
+pytest --cov=modules --cov=services --cov=utils --cov-report=term-missing
+
+# HTML coverage report
+pytest --cov=modules --cov=services --cov=utils --cov-report=html
+```
+
+### Code Quality
+
+```bash
+# Format code (required before commits)
+black .
+
+# Lint code
+ruff check .
+ruff check --fix .  # Auto-fix safe issues
+```
+
+### Vision OCR Testing
+
+```bash
+# Simple test with sample bills
+python test_vision_ocr.py
+
+# Advanced batch testing with metadata validation
+python scripts/test_vision_ocr.py --show-details --dump-json
+```
+
+---
+
+## Project Roadmap
+
+### Current (v1.0)
+- ✅ GPT-4o Vision OCR (100% accuracy)
+- ✅ Conversational financial advisor
+- ✅ Explainable investment recommendations
+- ✅ Proactive anomaly detection
+- ✅ Bilingual support (zh_CN, en_US)
+
+### Near-term (v1.1-v1.2)
+- [ ] Multi-currency support (USD, EUR, GBP, JPY)
+- [ ] PDF bill parsing (bank statements)
+- [ ] Export reports (PDF, Excel)
+- [ ] Mobile-responsive UI optimization
+- [ ] Batch bill processing API
+
+### Mid-term (v2.0)
+- [ ] Integration with banking APIs (Plaid, Teller)
+- [ ] Recurring expense tracking and prediction
+- [ ] Budget goal setting and progress tracking
+- [ ] Multi-user support with data isolation
+- [ ] Advanced analytics dashboard (cashflow forecasting)
+
+### Long-term (v3.0+)
+- [ ] On-device OCR (privacy-first alternative)
+- [ ] Multi-modal financial coaching (voice + text)
+- [ ] Investment portfolio tracking integration
+- [ ] Tax optimization recommendations
+- [ ] Open financial data ecosystem (OFX, QIF export)
+
+---
+
+## Documentation
+
+### Technical Guides
 
 - **[Product Requirements (PRD v2.0)](./.claude/specs/wefinance-copilot/01-product-requirements.md)** - Feature specifications
-- **[System Architecture Design](./.claude/specs/wefinance-copilot/02-system-architecture.md)** - Detailed architecture
+- **[System Architecture](./.claude/specs/wefinance-copilot/02-system-architecture.md)** - Detailed architecture
 - **[Sprint Planning](./.claude/specs/wefinance-copilot/03-sprint-plan.md)** - Development roadmap
-- **[Deployment Guide](./DEPLOY.md)** - Streamlit Cloud + Docker + K8s options
-- **[Repository Guidelines](./AGENTS.md)** - Coding standards, testing, commits
+- **[Deployment Guide](./DEPLOY.md)** - Streamlit Cloud + Docker + K8s
+- **[Repository Guidelines](./AGENTS.md)** - Coding standards, testing
+- **[Conda Environment Guide](./docs/CONDA_GUIDE.md)** - Environment management
+
+### Developer Resources
+
+- **[CLAUDE.md](./CLAUDE.md)** - Project instructions for Claude Code
+- **[API Documentation](./.claude/specs/)** - Detailed API specs
 
 ---
 
-## 🏆 Competition Information
+## Contributing
 
-- **Event**: 2025 Shenzhen International Fintech Competition
-- **Track**: AI Track
-- **Team**: 慧眼队 (Huiyan Team)
-- **Deadline**: November 16, 2025, 24:00
-- **Scoring Criteria**:
-  - Product Completeness: 40%
-  - Innovation: 30%
-  - Business Value: 30%
+Contributions are welcome! Here's how:
 
-**Competitive Advantages**:
-1. **Vision LLM Innovation**: 100% OCR accuracy (vs. Traditional OCR 0%)
-2. **One-Step Extraction**: Image → Structured Data (eliminates preprocessing)
-3. **Explainable AI (XAI)**: Builds user trust through transparency
-4. **Proactive Detection**: From reactive to proactive financial monitoring
+### Getting Started
 
----
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Test thoroughly (`pytest tests/ -v`)
+5. Format code (`black .` and `ruff check --fix .`)
+6. Commit (`git commit -m 'feat: add amazing feature'`)
+7. Push to branch (`git push origin feature/amazing-feature`)
+8. Open Pull Request
 
-## 📞 Contact
+### Contribution Guidelines
 
-**Team Name**: 慧眼队 (Huiyan Team)
-**Contact Email**: johnrobertdestiny@gmail.com
-**GitHub**: https://github.com/JasonRobertDestiny/WeFinance-Copilot
+- **Code Style**: PEP8 compliance (enforced by `black` and `ruff`)
+- **Commit Messages**: Conventional commits (`type(scope): description`)
+- **Testing**: Add tests for new features, maintain coverage
+- **Documentation**: Update docs for API changes
+- **Language**: English for code comments and documentation
 
----
+### Priority Areas
 
-## 📄 License
+High-impact contributions:
 
-This project is for 2025 Shenzhen International Fintech Competition participation only. Unauthorized commercial use is prohibited.
-
----
-
-## 🙏 Acknowledgments
-
-- **OpenAI** for GPT-4o Vision API
-- **Streamlit** for rapid prototyping framework
-- **LangChain** for conversation management
-- **Competition Organizers** for the opportunity
+- **OCR Enhancements**: Support for receipts, invoices, bank statements
+- **Multi-currency**: Currency detection and conversion
+- **Privacy Features**: On-device OCR alternatives
+- **Mobile UX**: Responsive design, touch optimization
+- **Integration**: Banking API connectors (Plaid, Teller)
+- **Testing**: Increase coverage to 90%+
+- **Localization**: Additional language support (ja_JP, ko_KR, es_ES)
 
 ---
 
-**Made with ❤️ by Huiyan Team for Shenzhen Fintech Competition 2025**
+## Community & Support
+
+- **Issues**: [GitHub Issues](https://github.com/JasonRobertDestiny/WeFinance-Copilot/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/JasonRobertDestiny/WeFinance-Copilot/discussions)
+- **Email**: johnrobertdestiny@gmail.com
+
+---
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- **OpenAI** - GPT-4o Vision API
+- **Streamlit** - Rapid prototyping framework
+- **LangChain** - Conversation management tools
+- **Open Source Community** - Invaluable libraries and inspiration
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JasonRobertDestiny/WeFinance-Copilot&type=Date)](https://star-history.com/#JasonRobertDestiny/WeFinance-Copilot&Date)

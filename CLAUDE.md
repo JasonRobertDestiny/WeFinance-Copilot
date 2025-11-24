@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WeFinance Copilot is an AI-powered financial assistant for the 2025 Shenzhen Fintech Competition. It uses Vision LLM (GPT-4o) for bill OCR, conversational AI for financial advice, and explainable AI for investment recommendations.
+WeFinance Copilot is an AI-powered personal finance assistant. It uses Vision LLM (GPT-4o) for bill OCR, conversational AI for financial advice, and explainable AI for investment recommendations.
 
-**Key Architecture Decision**: Originally used PaddleOCR, but migrated to GPT-4o Vision OCR for 100% recognition accuracy (vs 0% with synthetic images). This is the core competitive advantage.
+**Key Architecture Decision**: Originally used PaddleOCR, but migrated to GPT-4o Vision OCR for 100% recognition accuracy (vs 0% with synthetic images). This is the core technical innovation.
 
-**Project Status**: Competition-ready deployment. Live demo at https://wefinance-copilot.streamlit.app. Demo materials prepared (screenshots/, demo/wefinance_presentation.pptx).
+**Project Status**: Production-ready deployment. Live demo at https://wefinance-copilot.streamlit.app.
 
 **Deployment**: Primary deployment on Streamlit Community Cloud with automatic CI/CD from `main` branch. See DEPLOY.md for container deployment options.
 
@@ -677,36 +677,6 @@ def chat(query):
 - REMOVED: PaddleOCR dependencies from `environment.yml`, `requirements.txt`, `.env.example`
 
 **Migration path**: All code uses `OCRService` facade, which internally delegates to `VisionOCRService`.
-
-## Demo Materials (NEW - 2025-11-09)
-
-**Location**: `screenshots/` and `demo/`
-
-### Screenshots for Competition Submission
-
-**Chinese UI** (screenshots/):
-- `01_homepage_progress_zh.png`: Homepage with feature overview
-- `02_bill_upload_ocr_zh.png`: Bill upload and OCR results
-- `03_spending_insights_zh.png`: Spending analysis dashboard
-- `04_advisor_chat_zh.png`: AI financial advisor conversation
-- `05_investment_recs_zh.png`: Investment recommendations with XAI
-- `06_sidebar_zh.png`: Navigation sidebar
-
-**English UI** (screenshots/):
-- `07_homepage_progress_en.png`: English homepage
-- `08_advisor_chat_en.png`: English chat interface
-
-**Usage**: Include in competition presentation and documentation.
-
-### Presentation Materials (demo/)
-
-**Files**:
-- `wefinance_presentation.pptx`: Competition presentation slides
-- `video_script.md`: Video demonstration script
-- `ppt_outline.md`: Presentation structure outline
-- `checklist.md`: Pre-submission checklist
-
-**Note**: PowerPoint generation scripts (`create_ppt_*.js`) use Node.js and officegen package.
 
 ## Debugging Tips
 
