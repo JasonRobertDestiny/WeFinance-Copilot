@@ -424,7 +424,7 @@ Scan the QR code to join our WeChat group for discussions, support, and updates:
 
 <div align="center">
   <img src="./vx_chat.png" alt="WeChat Group QR Code" width="300"/>
-  <p><em>QR code valid until December 5, 2025. Will be updated after expiration.</em></p>
+  <p><em>QR code valid until December 6, 2025. Will be updated after expiration.</em></p>
 </div>
 
 ---

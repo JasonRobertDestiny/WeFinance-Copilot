@@ -424,7 +424,7 @@ python scripts/test_vision_ocr.py --show-details --dump-json
 
 <div align="center">
   <img src="./vx_chat.png" alt="微信群二维码" width="300"/>
-  <p><em>二维码有效期至2025年12月5日，过期后将更新</em></p>
+  <p><em>二维码有效期至2025年12月6日，过期后将更新</em></p>
 </div>
 
 ---
